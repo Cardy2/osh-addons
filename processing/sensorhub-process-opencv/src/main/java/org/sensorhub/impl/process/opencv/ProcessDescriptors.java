@@ -23,6 +23,7 @@ public class ProcessDescriptors extends AbstractProcessProvider
     public ProcessDescriptors()
     {
         addImpl(FaceDetection.INFO);
+        addImpl(VehicleDetection.INFO);
         addImpl(ObjectTracking.INFO);
         addImpl(BboxCenter.INFO);
         addImpl(VideoDisplayCV.INFO);
