@@ -1,7 +1,8 @@
 <?xml version="1.0"?>
 <!-- Add more negative to training. -->
 <opencv_storage>
-<cars3 type_id="opencv-haar-classifier">
+  <cascade type_id="opencv-cascade-classifier">
+    <featureType>HAAR</featureType>
   <size>
     20 20</size>
   <stages>
@@ -3650,5 +3651,5 @@
             <right_val>0.0490311309695244</right_val></_></_></trees>
       <stage_threshold>-1.0918780565261841</stage_threshold>
       <parent>11</parent>
-      <next>-1</next></_></stages></cars3>
+      <next>-1</next></_></stages></cascade>
 </opencv_storage>

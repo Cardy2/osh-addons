@@ -102,7 +102,7 @@
                     <sml:configuration>
                         <sml:Settings>
                             <sml:setValue ref="parameters/detectionMode">CONTINUOUS</sml:setValue>
-                            <sml:setValue ref="parameters/configFile">resources/main/classifiers/haarcascade_cars.xml</sml:setValue>
+                            <sml:setValue ref="parameters/configFile">haarcascade_cars.xml</sml:setValue>
                         </sml:Settings>
                     </sml:configuration>
                 </sml:SimpleProcess>
