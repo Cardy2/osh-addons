@@ -21,7 +21,9 @@ public class V4LCameraParams implements Cloneable
     public int imgWidth = 640;
     public int imgHeight = 480;
     public int frameRate = 30;
-    
+    public int channel = 0;
+    public int standard = 0;
+    public int fps = 30;
     
     @Override
     protected V4LCameraParams clone()
