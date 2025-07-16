@@ -19,6 +19,7 @@ import org.sensorhub.impl.sensor.ffmpeg.outputs.VideoOutput;
 import org.sensorhub.mpegts.MpegTsProcessor;
 import org.vast.swe.SWEConstants;
 
+import java.net.UnknownHostException;
 import java.util.concurrent.Executors;
 import java.util.concurrent.ScheduledExecutorService;
 
@@ -207,6 +208,7 @@ public class FFMPEGSensor extends AbstractSensorModule<FFMPEGConfig> {
                 logger.info("Opening network stream");
                 mpegTsProcessor = new MpegTsProcessor(config.connection.connectionString);
             }
+            mpegTsProcessor.setInjectVideoExtradata(config.connection.injectExtradata);
         }
 
         if (mpegTsProcessor.isStreamOpened()) {

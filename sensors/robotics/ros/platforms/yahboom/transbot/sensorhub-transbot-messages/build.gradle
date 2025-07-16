@@ -8,10 +8,12 @@ buildscript {
         classpath "org.ros.rosjava_bootstrap:message_generation:0.3.3"
     }
     repositories {
-        jcenter()
         mavenCentral()
         maven {
-            url "https://github.com/rosjava/rosjava_mvn_repo/raw/master"
+            url "https://raw.githubusercontent.com/rosjava/rosjava_mvn_repo/master/"
+        }
+        maven {
+            url "https://artifacts.camunda.com/artifactory/public/"
         }
     }
 }
@@ -53,10 +55,12 @@ compileJava.dependsOn generateRosMessages
 
 repositories {
     repositories {
-        jcenter()
         mavenCentral()
         maven {
-            url "https://github.com/rosjava/rosjava_mvn_repo/raw/master"
+            url "https://raw.githubusercontent.com/rosjava/rosjava_mvn_repo/master/"
+        }
+        maven {
+            url "https://artifacts.camunda.com/artifactory/public/"
         }
     }
 }
@@ -65,12 +69,7 @@ group 'org.sensorhub.yahboom.transbot'
 version = '1.0.0'
 
 dependencies {
-    api 'org.ros.rosjava_bootstrap:message_generation:0.3.3'
-    api 'org.ros.rosjava_messages:std_msgs:0.5.11'
-    api 'org.ros.rosjava_messages:geometry_msgs:1.12.7'
-    api 'org.ros.rosjava_messages:move_base_msgs:1.11.14'
-    api 'org.ros.rosjava_messages:sensor_msgs:1.12.7'
-    api 'org.ros.rosjava_messages:std_srvs:1.10.12'
+    implementation project(':sensorhub-ros-common')
     testImplementation 'junit:junit:4.12'
 }
 
@@ -80,3 +79,21 @@ clean {
     }
 }
 
+// add info to OSGi manifest
+osgi {
+    manifest {
+        attributes('Bundle-Vendor': 'Botts Inc')
+    }
+}
+
+// add info to maven pom
+ext.pom >>= {
+    developers {
+        developer {
+            id 'ngaray'
+            name 'Nicolas Garay'
+            organization 'Botts Innovative Research, Inc.'
+            organizationUrl 'www.botts-inc.com'
+        }
+    }
+}
