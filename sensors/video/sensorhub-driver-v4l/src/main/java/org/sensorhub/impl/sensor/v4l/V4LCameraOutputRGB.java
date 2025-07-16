@@ -14,6 +14,7 @@ Copyright (C) 2012-2015 Sensia Software LLC. All Rights Reserved.
 
 package org.sensorhub.impl.sensor.v4l;
 
+import au.edu.jcu.v4l4j.exceptions.UnsupportedMethod;
 import net.opengis.swe.v20.DataBlock;
 import net.opengis.swe.v20.DataComponent;
 import org.sensorhub.api.data.DataEvent;
@@ -59,9 +60,14 @@ public class V4LCameraOutputRGB extends V4LCameraOutput implements CaptureCallba
             // adjust params to what was actually set up by V4L
             camParams.imgWidth = frameGrabber.getWidth();
             camParams.imgHeight = frameGrabber.getHeight();
-            camParams.frameRate = frameGrabber.getFrameInterval().denominator / frameGrabber.getFrameInterval().numerator;
+            try {
+                camParams.frameRate = frameGrabber.getFrameInterval().denominator / frameGrabber.getFrameInterval().numerator;
+            } catch (UnsupportedMethod e) {
+                getLogger().warn("Frame interval not supported; setting default FPS to 30");
+                camParams.frameRate = 30;
+            }
             camParams.imgFormat = frameGrabber.getImageFormat().getName();
-            
+
             // create SWE output structure
             VideoCamHelper fac = new VideoCamHelper();
             dataStream = fac.newVideoOutputRGB(getName(), camParams.imgWidth, camParams.imgHeight);
@@ -76,6 +82,7 @@ public class V4LCameraOutputRGB extends V4LCameraOutput implements CaptureCallba
     protected void initFrameGrabber(V4LCameraParams camParams) throws V4L4JException
     {        
         if (frameGrabber == null)
+//            frameGrabber = parentSensor.videoDevice.getRawFrameGrabber(camParams.imgWidth, camParams.imgHeight, 0, V4L4JConstants.STANDARD_WEBCAM);
             frameGrabber = parentSensor.videoDevice.getRGBFrameGrabber(camParams.imgWidth, camParams.imgHeight, 0, V4L4JConstants.STANDARD_WEBCAM);
     }
 

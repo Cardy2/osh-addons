@@ -14,6 +14,7 @@ Copyright (C) 2012-2015 Sensia Software LLC. All Rights Reserved.
 
 package org.sensorhub.impl.sensor.v4l;
 
+import au.edu.jcu.v4l4j.exceptions.UnsupportedMethod;
 import net.opengis.swe.v20.DataBlock;
 import org.sensorhub.api.data.DataEvent;
 import org.sensorhub.api.sensor.SensorException;
@@ -60,7 +61,12 @@ public class V4LCameraOutputMJPEG extends V4LCameraOutput implements CaptureCall
             // adjust params to what was actually set up by V4L
             camParams.imgWidth = frameGrabber.getWidth();
             camParams.imgHeight = frameGrabber.getHeight();
-            camParams.frameRate = frameGrabber.getFrameInterval().denominator / frameGrabber.getFrameInterval().numerator;
+            try {
+                camParams.frameRate = frameGrabber.getFrameInterval().denominator / frameGrabber.getFrameInterval().numerator;
+            } catch (UnsupportedMethod e) {
+                getLogger().warn("Frame interval not supported; setting default FPS to 30");
+            camParams.frameRate = 30;
+            }
             camParams.imgFormat = frameGrabber.getImageFormat().getName();
             
             // create SWE output structure
@@ -79,7 +85,10 @@ public class V4LCameraOutputMJPEG extends V4LCameraOutput implements CaptureCall
         if (frameGrabber == null)
         {
             frameGrabber = parentSensor.videoDevice.getRawFrameGrabber(camParams.imgWidth, camParams.imgHeight, 0, V4L4JConstants.STANDARD_WEBCAM, imgFormat);
+//            frameGrabber = parentSensor.videoDevice.getJPEGFrameGrabber(camParams.imgWidth, camParams.imgHeight, 0, V4L4JConstants.STANDARD_WEBCAM, imgFormat.getIndex());
             //frameGrabber.setFrameInterval(1, camParams.frameRate);
+            getLogger().info("Initializing MJPEG frame grabber: width={} height={} format={} index={}", camParams.imgWidth, camParams.imgHeight, imgFormat.getName(), imgFormat.getIndex());
+
         }
     }
 
@@ -100,7 +109,9 @@ public class V4LCameraOutputMJPEG extends V4LCameraOutput implements CaptureCall
         byte[] frameData = new byte[frame.getFrameLength()];
         System.arraycopy(frame.getBytes(), 0, frameData, 0, frameData.length);
         ((DataBlockMixed)dataBlock).getUnderlyingObject()[1].setUnderlyingObject(frameData);
-        
+        getLogger().debug("Captured frame of size: {}", frame.getFrameLength());
+
+
         // update latest record and send event
         latestRecord = dataBlock;
         latestRecordTime = System.currentTimeMillis();

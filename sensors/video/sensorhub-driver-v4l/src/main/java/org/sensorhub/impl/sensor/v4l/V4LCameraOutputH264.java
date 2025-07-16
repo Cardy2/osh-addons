@@ -14,6 +14,7 @@ Copyright (C) 2012-2015 Sensia Software LLC. All Rights Reserved.
 
 package org.sensorhub.impl.sensor.v4l;
 
+import au.edu.jcu.v4l4j.exceptions.UnsupportedMethod;
 import net.opengis.swe.v20.DataBlock;
 import org.sensorhub.api.data.DataEvent;
 import org.sensorhub.api.sensor.SensorException;
@@ -60,7 +61,12 @@ public class V4LCameraOutputH264 extends V4LCameraOutput implements CaptureCallb
             // adjust params to what was actually set up by V4L
             camParams.imgWidth = frameGrabber.getWidth();
             camParams.imgHeight = frameGrabber.getHeight();
-            camParams.frameRate = frameGrabber.getFrameInterval().denominator / frameGrabber.getFrameInterval().numerator;
+            try {
+                camParams.frameRate = frameGrabber.getFrameInterval().denominator / frameGrabber.getFrameInterval().numerator;
+            } catch (UnsupportedMethod e) {
+                getLogger().warn("Frame interval not supported; setting default FPS to 30");
+            camParams.frameRate = 30;
+            }
             camParams.imgFormat = frameGrabber.getImageFormat().getName();
             
             // create SWE output structure

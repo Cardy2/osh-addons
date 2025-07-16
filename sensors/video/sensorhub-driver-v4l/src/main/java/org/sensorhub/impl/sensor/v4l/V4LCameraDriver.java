@@ -22,6 +22,9 @@ import au.edu.jcu.v4l4j.ImageFormat;
 import au.edu.jcu.v4l4j.VideoDevice;
 import org.slf4j.LoggerFactory;
 
+import com.sun.jna.Native;
+import com.sun.jna.NativeLibrary;
+
 
 /**
  * <p>
@@ -41,17 +44,25 @@ public class V4LCameraDriver extends AbstractSensorModule<V4LCameraConfig>
     V4LCameraControl controlInterface;
     
     
-    static
-    {
-        try
-        {
-            // preload libvideo so it is extracted from JAR
-            System.loadLibrary("video");
-        }
-        catch (Exception e)
-        {
-            LoggerFactory.getLogger(V4LCameraDriver.class).error("Unable to load native v4l library", e);
-        }
+//            static
+//            {
+//                try
+//                {
+//                    // preload libvideo so it is extracted from JAR
+//                    System.loadLibrary("video");
+//                }
+//                catch (Exception e)
+//                {
+//                    LoggerFactory.getLogger(V4LCameraDriver.class).error("Unable to load native v4l library", e);
+//                }
+//            }
+
+    static {
+
+        NativeLibrary instance = NativeLibrary.getInstance("video", ClassLoader.getSystemClassLoader());
+
+//        Native.register(org.openkinect.freenect.Freenect.class, instance);
+        Native.register(au.edu.jcu.v4l4j.examples.videoViewer.DeviceChooser.class, instance);
     }
     
     
@@ -77,7 +88,7 @@ public class V4LCameraDriver extends AbstractSensorModule<V4LCameraConfig>
         
         if (nativeFormats == null || nativeFormats.isEmpty())
             throw new SensorException("Video device " + config.deviceName + " cannot be used for capture");
-        
+
         // init video output
         for (ImageFormat fmt: nativeFormats)
         {
@@ -90,14 +101,14 @@ public class V4LCameraDriver extends AbstractSensorModule<V4LCameraConfig>
             {
                 getLogger().debug("Creating H264 output");
                 dataInterface = new V4LCameraOutputH264(this, fmt);
-            }            
+            }
         }
         
         if (dataInterface == null)
         {
             getLogger().debug("Creating RGB output");
             dataInterface = new V4LCameraOutputRGB(this);
-        } 
+        }
         
         dataInterface.init(deviceInfo);
         addOutput(dataInterface, false);
@@ -107,8 +118,10 @@ public class V4LCameraDriver extends AbstractSensorModule<V4LCameraConfig>
         controlInterface.init(deviceInfo);
         addControlInput(controlInterface);
     }
-    
-    
+
+
+
+
     protected DeviceInfo initVideoDevice() throws SensorException
     {
         try
