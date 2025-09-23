@@ -3,12 +3,20 @@ ext.details = 'Computer vision and image processing components based on the Open
 version = '0.1'
 
 
+repositories {
+  mavenCentral()
+  maven { url "https://bytedeco.org/maven" }
+}
+
 dependencies {
   implementation 'org.sensorhub:sensorhub-core:' + oshCoreVersion
   implementation project(':sensorhub-process-ffmpeg')
-  embeddedApi('org.bytedeco:opencv-platform:4.5.5-1.5.7') {
-    exclude group: 'org.bytedeco', module: 'javacpp'
-  }
+//  embeddedApi('org.bytedeco:opencv-platform:4.5.5-1.5.7') {
+//    exclude group: 'org.bytedeco', module: 'javacpp'
+  implementation 'org.bytedeco:javacv-platform:1.5.11'
+  implementation 'org.bytedeco:opencv-platform:4.5.5-1.5.11'
+  implementation 'org.bytedeco:tesseract-platform:5.5.0-1.5.11'
+
   
   testImplementation project(':sensorhub-driver-v4l')
 }

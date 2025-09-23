@@ -55,18 +55,23 @@ public abstract class V4LCameraOutput extends AbstractSensorOutput<V4LCameraDriv
     protected abstract void initFrameGrabber(V4LCameraParams camParams) throws V4L4JException;
     
     protected abstract void processFrame(VideoFrame frame);
-    
-    
+
+
     protected void start() throws SensorException
     {
         try
         {
-            initFrameGrabber(parentSensor.camParams);            
+            initFrameGrabber(parentSensor.camParams);
+            if (frameGrabber == null)
+                throw new V4L4JException("Frame grabber is null — likely unsupported format or device busy");
+
             frameGrabber.setCaptureCallback(this);
             processingFrame.set(false);
             started = false;
             firstFrame = true;
             frameGrabber.startCapture();
+//            parentSensor.getLogger().info("Started V4L capture with format: {}, resolution: {}x{}, FPS: {}", frameGrabber.getImageFormat().getName(), frameGrabber.getWidth(), frameGrabber.getHeight(), frameGrabber.getFrameInterval().denominator / frameGrabber.getFrameInterval().numerator);
+
             parentSensor.getLogger().debug("V4L frame capture started");
         }
         catch (V4L4JException e)

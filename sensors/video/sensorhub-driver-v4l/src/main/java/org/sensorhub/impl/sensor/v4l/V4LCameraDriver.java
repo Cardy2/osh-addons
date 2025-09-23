@@ -1,16 +1,16 @@
 /***************************** BEGIN LICENSE BLOCK ***************************
 
-The contents of this file are subject to the Mozilla Public License, v. 2.0.
-If a copy of the MPL was not distributed with this file, You can obtain one
-at http://mozilla.org/MPL/2.0/.
+ The contents of this file are subject to the Mozilla Public License, v. 2.0.
+ If a copy of the MPL was not distributed with this file, You can obtain one
+ at http://mozilla.org/MPL/2.0/.
 
-Software distributed under the License is distributed on an "AS IS" basis,
-WITHOUT WARRANTY OF ANY KIND, either express or implied. See the License
-for the specific language governing rights and limitations under the License.
- 
-Copyright (C) 2012-2015 Sensia Software LLC. All Rights Reserved.
- 
-******************************* END LICENSE BLOCK ***************************/
+ Software distributed under the License is distributed on an "AS IS" basis,
+ WITHOUT WARRANTY OF ANY KIND, either express or implied. See the License
+ for the specific language governing rights and limitations under the License.
+
+ Copyright (C) 2012-2015 Sensia Software LLC. All Rights Reserved.
+
+ ******************************* END LICENSE BLOCK ***************************/
 
 package org.sensorhub.impl.sensor.v4l;
 
@@ -21,6 +21,8 @@ import au.edu.jcu.v4l4j.DeviceInfo;
 import au.edu.jcu.v4l4j.ImageFormat;
 import au.edu.jcu.v4l4j.VideoDevice;
 import org.slf4j.LoggerFactory;
+
+import java.io.IOException;
 
 
 /**
@@ -35,12 +37,13 @@ import org.slf4j.LoggerFactory;
  */
 public class V4LCameraDriver extends AbstractSensorModule<V4LCameraConfig>
 {
+    VirtualCam virtualCam;
     V4LCameraParams camParams;
     VideoDevice videoDevice;
     V4LCameraOutput dataInterface;
     V4LCameraControl controlInterface;
-    
-    
+
+
     static
     {
         try
@@ -53,31 +56,58 @@ public class V4LCameraDriver extends AbstractSensorModule<V4LCameraConfig>
             LoggerFactory.getLogger(V4LCameraDriver.class).error("Unable to load native v4l library", e);
         }
     }
-    
-    
+
+//    static {
+
+//        NativeLibrary instance = NativeLibrary.getInstance("video", ClassLoader.getSystemClassLoader());
+//
+////        Native.register(org.openkinect.freenect.Freenect.class, instance);
+//        Native.register(au.edu.jcu.v4l4j.examples.videoViewer.DeviceChooser.class, instance);
+//    }
+
+
     public V4LCameraDriver()
     {
-        
+
     }
-    
-    
+
+    //    @Override
+//    protected void beforeInit() {
+//        if (config.virtualCamEnabled) {
+//            try {
+//                virtualCam = new VirtualCam(config.deviceName, config.virtualCam);
+//                virtualCam.start();
+//            } catch (IOException | InterruptedException e) {
+//                throw new RuntimeException(e);
+//            }
+//        }
+//    }
     @Override
     protected void doInit() throws SensorHubException
     {
         super.doInit();
-        
+
+        if (config.virtualCamEnabled) {
+            try {
+                virtualCam = new VirtualCam(config.deviceName, config.virtualCam);
+                virtualCam.start();
+            } catch (IOException | InterruptedException e) {
+                throw new RuntimeException(e);
+            }
+        }
+
         // generate IDs
         generateUniqueID("urn:osh:sensor:v4l-cam:", config.serialNumber);
         generateXmlID("V4L_CAMERA_", config.serialNumber);
         this.camParams = config.defaultParams.clone();
-        
+
         // init video device
         DeviceInfo deviceInfo = initVideoDevice();
         var nativeFormats = deviceInfo.getFormatList().getNativeFormats();
-        
+
         if (nativeFormats == null || nativeFormats.isEmpty())
             throw new SensorException("Video device " + config.deviceName + " cannot be used for capture");
-        
+
         // init video output
         for (ImageFormat fmt: nativeFormats)
         {
@@ -90,83 +120,91 @@ public class V4LCameraDriver extends AbstractSensorModule<V4LCameraConfig>
             {
                 getLogger().debug("Creating H264 output");
                 dataInterface = new V4LCameraOutputH264(this, fmt);
-            }            
+            }
         }
-        
+
         if (dataInterface == null)
         {
             getLogger().debug("Creating RGB output");
             dataInterface = new V4LCameraOutputRGB(this);
-        } 
-        
+        }
+
         dataInterface.init(deviceInfo);
         addOutput(dataInterface, false);
-        
+
         // init control interface
         this.controlInterface = new V4LCameraControl(this);
         controlInterface.init(deviceInfo);
         addControlInput(controlInterface);
     }
-    
-    
-    protected DeviceInfo initVideoDevice() throws SensorException
-    {
-        try
-        {
-            videoDevice = new VideoDevice(config.deviceName);
-            return videoDevice.getDeviceInfo();
-        }
-        catch (Throwable e)
-        {
-            throw new SensorException("Cannot initialize video device " + config.deviceName, e);
+
+
+    protected DeviceInfo initVideoDevice() throws SensorException {
+        if (!config.virtualCamEnabled) {
+            try {
+                videoDevice = new VideoDevice(config.deviceName);
+                return videoDevice.getDeviceInfo();
+            } catch (Throwable e) {
+                throw new SensorException("Cannot initialize video device " + config.deviceName, e);
+            }
+        } else {
+            try {
+                videoDevice = new VideoDevice(config.virtualCam);
+                return videoDevice.getDeviceInfo();
+            } catch (Throwable e) {
+                throw new SensorException("Cannot initialize video device " + config.virtualCam, e);
+            }
         }
     }
-    
-    
+
+
     @Override
     protected void doStart() throws SensorException
     {
         if (videoDevice == null)
             initVideoDevice();
-            
+
         // start video streaming
         if (dataInterface != null)
             dataInterface.start();
     }
-    
-    
+
+
     @Override
     protected void doStop()
     {
         if (dataInterface != null)
             dataInterface.stop();
-        
+
         if (controlInterface != null)
             controlInterface.stop();
-        
+
         if (videoDevice != null)
         {
             videoDevice.release();
             videoDevice = null;
         }
+        if (virtualCam.isRunning()){
+            virtualCam.stop();
+        }
     }
-    
-    
+
+
     public void updateParams(V4LCameraParams params) throws SensorException
     {
         // cleanup framegrabber and restart video output
         dataInterface.stop();
         dataInterface.start();
     }
-    
-    
+
+
     @Override
     protected void updateSensorDescription()
     {
         synchronized (sensorDescLock)
         {
             super.updateSensorDescription();
-            
+
             if (!sensorDescription.isSetDescription())
                 sensorDescription.setDescription("Video4Linux camera on port " + videoDevice.getDevicefile());
         }
@@ -178,11 +216,11 @@ public class V4LCameraDriver extends AbstractSensorModule<V4LCameraConfig>
     {
         return (videoDevice != null);
     }
-    
+
 
     @Override
     public void cleanup()
     {
-        
+
     }
 }
