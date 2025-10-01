@@ -105,7 +105,7 @@ class FeatureDetector1 {
 
         this.width = width;
         this.height = height;
-        this.mat = mat;
+        this.mat = mat.clone();
         this.bboxList = bboxList;
         this.numVehicles = numVehicles;
         this.imgWidth = imgWidth;
@@ -166,7 +166,7 @@ class FeatureDetector1 {
                     var bboxData = bboxList.getData();
 
                     int idx = 0;
-
+//                    Mat safeMat = mat.clone();
                     for (int i = 0; i < features.size(); i++) {
 
                         Rect feature = features.get(i);
@@ -189,6 +189,8 @@ class FeatureDetector1 {
                                                 feature.height())
                         );
 
+//                        safeMat.release();
+
                         int vehicleId = matchToExistingTracker(match, imgWidth, imgHeight);
 
                         if (vehicleId == -1) {
@@ -208,38 +210,41 @@ class FeatureDetector1 {
                             // Update existing vehicle
                             double now = inputTimestamp.getData().getDoubleValue();
                             VehicleTracking vt = activeVehicles.get(vehicleId);
-                            vt.update(now, match);
-                            matchedThisFrame.add(vehicleId);
+                            if (vt.isActive()) {
+                                vt.update(now, match);
+                                matchedThisFrame.add(vehicleId);
                             }
+                        }
                         }
                     }
                     // If no detections, mark all active trackers as ended
                     if (!detected && started) {
                         for (VehicleTracking vt : activeVehicles.values()) {
-
+                            if (vt.isActive()) {
                                 double end = inputTimestamp.getData().getDoubleValue();
                                 vt.end(end);
                                 startTime.getData().setDoubleValue(vt.getDetectionStart());
                                 endTime.getData().setDoubleValue(vt.getDetectionEnd());
                                 foiId.getData().setIntValue(vt.getId());
                             }
+                        }
                             started = false;
                     // If detections exist but some trackers weren’t matched, update their detectionEnd
                     } else {
                         for (VehicleTracking vt : activeVehicles.values()) {
                             if (vt.isActive() && !matchedThisFrame.contains(vt.getId())) {
                                 double end = inputTimestamp.getData().getDoubleValue();
-                                vt.end(end);
+                                vt.setDetectionEnd(end);
                             }
                         }
                     }
-
+                    setActiveVechicles(this.activeVehicles);
                     logger.debug("{} features detected", features.size());
                 }
 
                 features.deallocate();
             }
-
+//            Mat frameMat = mat.clone();
             if (null != label) {
 
                 logger.debug("Labeling image");
@@ -253,8 +258,11 @@ class FeatureDetector1 {
                         new Scalar(0.0, 255.0, 255.0, 2.0));
 
                 logger.debug("Image labeled: {},{}", label, foiId);
+
+//                frameMat.release();
             }
 
+//            Mat imgMat = mat.clone();
             // Convert to BufferedImage AFTER drawing
             BufferedImage image = matToBufferedImage(mat);
 
@@ -267,6 +275,7 @@ class FeatureDetector1 {
                 outputImageData = baos.toByteArray();
             }
 
+//            imgMat.release();
             mat.release();
 
             return outputImageData;
@@ -291,25 +300,27 @@ class FeatureDetector1 {
         double frameDiag = Math.sqrt(frameWidth * frameWidth + frameHeight * frameHeight);
 
         for (VehicleTracking vt : activeVehicles.values()) {
-            Rect lastBox = vt.getLastBoundingBox();
-            if (lastBox == null) continue;
+            if (vt.isActive()) {
+                Rect lastBox = vt.getLastBoundingBox();
+                if (lastBox == null) continue;
 
-            // 1. Compute IoU
-            double iou = computeIoU(feature, lastBox);
+                // 1. Compute IoU
+                double iou = computeIoU(feature, lastBox);
 
-            // 2. Compute normalized center distance
-            double distance = centerDistance(feature, lastBox);
-            double normDistance = distance / frameDiag; // 0.0 = same center, 1.0 = farthest apart
+                // 2. Compute normalized center distance
+                double distance = centerDistance(feature, lastBox);
+                double normDistance = distance / frameDiag; // 0.0 = same center, 1.0 = farthest apart
 
-            // Hybrid scoring:
-            // - Weighted IoU + inverse distance
-            double score = 0.6 * iou + 0.4 * (1.0 - Math.min(normDistance, 1.0));
+                // Hybrid scoring:
+                // - Weighted IoU + inverse distance
+                double score = 0.6 * iou + 0.4 * (1.0 - Math.min(normDistance, 1.0));
 
-            // Apply minimum conditions (loose filter before scoring)
-            if (iou > 0.3 || (iou > 0.15 && distance < 0.1 * frameDiag)) {
-                if (score > bestScore) {
-                    bestScore = score;
-                    matchedId = vt.getId();
+                // Apply minimum conditions (loose filter before scoring)
+                if (iou > 0.3 || (iou > 0.15 && distance < 0.1 * frameDiag)) {
+                    if (score > bestScore) {
+                        bestScore = score;
+                        matchedId = vt.getId();
+                    }
                 }
             }
         }
@@ -353,6 +364,14 @@ class FeatureDetector1 {
 
     public int getNextId(){
         return nextId;
+    }
+
+    public Map<Integer, VehicleTracking> setActiveVechicles(Map<Integer, VehicleTracking> activeVehicles){
+        return activeVehicles;
+    }
+
+    public Map<Integer, VehicleTracking> getActiveVehicles(){
+        return activeVehicles;
     }
 
 

@@ -171,7 +171,7 @@ public class RadarProcess extends ExecutableProcessImpl {
         ((AbstractDataComponentImpl)captureTimestampOut).setEncodingInfo(sampleTimeEnc);
 
         BinaryBlock mjpegEncodingOut = sweFactory.newBinaryBlock();
-        mjpegEncodingOut.setCompression("JPEG");
+        mjpegEncodingOut.setCompression("MJPEG");
         mjpegEncodingOut.setRef("/img");
         ((DataArrayImpl) captureImageOut).setEncodingInfo(mjpegEncodingOut);
 
@@ -200,6 +200,7 @@ public class RadarProcess extends ExecutableProcessImpl {
         var imgData = imgIn.getData();
 
         if (imgData instanceof DataBlockCompressed) {
+//        if (imgData instanceof DataBlockByte) {
 
             double detectionStartTime = startTime.getData().getDoubleValue();
             double detectionEndTime = endTime.getData().getDoubleValue();
@@ -220,6 +221,7 @@ public class RadarProcess extends ExecutableProcessImpl {
                     overThreshold.getData().setBooleanValue(true);
 
                     byte[] imageFrame = ((DataBlockCompressed) imgData).getUnderlyingObject();
+//                    byte[] imageFrame = ((DataBlockByte) imgData).getUnderlyingObject();
 
                     try {
                         BufferedImage image = ImageIO.read(new ByteArrayInputStream(imageFrame));

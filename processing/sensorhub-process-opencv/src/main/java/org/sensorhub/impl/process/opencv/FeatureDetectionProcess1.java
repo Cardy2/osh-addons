@@ -15,8 +15,10 @@ import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.vast.data.DataArrayImpl;
 import org.vast.data.DataBlockByte;
+import org.vast.data.DataBlockCompressed;
 import org.vast.process.ExecutableProcessImpl;
 import org.vast.process.ProcessException;
+import org.vast.sensorML.SMLUtils;
 import org.vast.swe.SWEHelper;
 import org.vast.swe.helper.RasterHelper;
 
@@ -142,9 +144,9 @@ public class FeatureDetectionProcess1 extends ExecutableProcessImpl {
                         DataType.BYTE))
                 .build());
 
-        BinaryBlock mjpegEncoding = sweFactory.newBinaryBlock();
-        mjpegEncoding.setCompression("MJPEG");
-        ((DataArrayImpl) imgOut).setEncodingInfo(mjpegEncoding);
+        BinaryBlock jpegEncoding = sweFactory.newBinaryBlock();
+        jpegEncoding.setCompression("MJPEG"); // tells the radar process it's MJPEG
+        ((DataArrayImpl) imgOut).setEncodingInfo(jpegEncoding);
 
         CVHelper swe = new CVHelper();
 
@@ -183,6 +185,7 @@ public class FeatureDetectionProcess1 extends ExecutableProcessImpl {
                 .build());
     }
 
+
     @Override
     public void init() throws ProcessException {
 
@@ -197,6 +200,8 @@ public class FeatureDetectionProcess1 extends ExecutableProcessImpl {
         logger.debug("Initialized");
     }
 
+
+
     @Override
     public void execute() {
 
@@ -205,42 +210,68 @@ public class FeatureDetectionProcess1 extends ExecutableProcessImpl {
         if (nextId != 1) {
             nextId = getNextId();
         }
-
-//        byte[] compressed = imgIn.getData().getByteArrayValue();
-//        Mat frame = ImageUtils.decodeJpegToMat(compressed);
+        activeVehicles = getActiveVehicles();
 
         double timeStampLabel = inputTimeStamp.getValue().getAsDouble() * 1000;
 
-        int imgWidth = imgIn.getComponentCount();
-        int imgHeight = ((DataArray) imgIn.getElementType()).getComponentCount();
+//        int imgWidth = imgIn.getComponentCount();
+//        int imgHeight = ((DataArray) imgIn.getElementType()).getComponentCount();
+//        var imgData = imgIn.getData();
+
+//        if (imgData instanceof DataBlockByte) {
+//
         var imgData = imgIn.getData();
+//
+        if (imgData instanceof DataBlockCompressed) {
 
-        if (imgData instanceof DataBlockByte) {
+            int imgWidth = inputWidth.getData().getIntValue();
+            int imgHeight = inputHeight.getData().getIntValue();
+//            byte[] imageFrame = ((DataBlockByte) imgData).getUnderlyingObject();
+            byte[] imageFrame = ((DataBlockCompressed) imgData).getUnderlyingObject();
 
-            byte[] imageFrame = ((DataBlockByte) imgData).getUnderlyingObject();
+//            byte[] frameData = ((DataBlockCompressed) imgData).getUnderlyingObject();
+//            byte[] imageFrame = ImageUtils.convertH264ToBitmap(frameData,imgWidth, imgHeight);
 
-            mat = new Mat(imgWidth, imgHeight, CV_8UC3, new BytePointer(imageFrame)); // CV_8UC: 8-bit unsigned integer matrix/image with 3 channels
+            if (null != imageFrame) {
+                mat = ImageUtils.matFromBytes(imageFrame);
+//            mat = new Mat(imgWidth, imgHeight, CV_8UC3, new BytePointer(imageFrame)); // CV_8UC: 8-bit unsigned integer matrix/image with 3 channels
 
+            Mat matCopy = mat.clone();
             Date date = new Date((long) timeStampLabel);
 
             SimpleDateFormat dateFormatter = new SimpleDateFormat("yyyy-MM-dd HH:mm:ssZ");
 
             FeatureDetector1 detector = new FeatureDetector1(
-                    cascadeClassifiers, mat, bboxList, numVehicles, imgWidth ,imgHeight, dateFormatter.format(date), inputTimeStamp, vehicleDetected, detectionStartTime, detectionEndTime, captureTimestamp, outputHeight, outputWidth, foiId, nextId, activeVehicles);
+                    cascadeClassifiers, matCopy, bboxList, numVehicles, imgWidth, imgHeight, dateFormatter.format(date), inputTimeStamp, vehicleDetected, detectionStartTime, detectionEndTime, captureTimestamp, outputHeight, outputWidth, foiId, nextId, activeVehicles);
 
             imageFrame = detector.detectFeatures();
 
             setNextId(detector);
+            setActiveVehicles(detector);
 
             int arraySize = imageFrame.length;
             imgOut.getArraySizeComponent().getData().setIntValue(arraySize);
             imgOut.getData().setUnderlyingObject(imageFrame);
 
 
-            // Copy frame timestamp
-            double frameTimestamp = inputTimeStamp.getData().getDoubleValue();
+//                if (imageFrame != null && imageFrame.length > 0) {
+//
+//                    outputWidth.getData().setIntValue(imgWidth);
+//                    outputHeight.getData().setIntValue(imgHeight);
+                    ((DataBlockCompressed) imgOut.getData()).setUnderlyingObject(imageFrame);
 
-            outputTimeStamp.getData().setDoubleValue(frameTimestamp);
+                    // Copy frame timestamp
+                    double timestamp = inputTimeStamp.getData().getDoubleValue();
+
+                    outputTimeStamp.getData().setDoubleValue(timestamp);
+
+                    mat.release();
+
+                // Copy frame timestamp
+//                double frameTimestamp = inputTimeStamp.getData().getDoubleValue();
+//
+//                outputTimeStamp.getData().setDoubleValue(frameTimestamp);
+            }
         } else {
             throw new IllegalArgumentException("Only DataBlockByte supported as input");
         }
@@ -293,6 +324,14 @@ public class FeatureDetectionProcess1 extends ExecutableProcessImpl {
 
     public int getNextId(){
         return nextId;
+    }
+
+    public void setActiveVehicles(FeatureDetector1 detector){
+        activeVehicles = detector.getActiveVehicles();
+    }
+
+    public Map<Integer, VehicleTracking> getActiveVehicles(){
+        return activeVehicles;
     }
 
 

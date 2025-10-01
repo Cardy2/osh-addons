@@ -40,6 +40,15 @@ public class VirtualCam {
                 "--output", "-"
         );
 
+        ProcessBuilder libcameraRawPb = new ProcessBuilder(
+                "libcamera-raw",
+                "-t", "0",                // run indefinitely
+                "--width", "640",
+                "--height", "480",
+                "--framerate", "30",
+                "--output", "-"           // write raw frames to stdout
+        );
+
         ProcessBuilder ffmpegPb = new ProcessBuilder(
                 "ffmpeg",
                 "-f", "rawvideo",
@@ -47,6 +56,19 @@ public class VirtualCam {
                 "-s", "640x480",
                 "-r", "30",
                 "-i", "-",
+                "-vcodec", "mjpeg",
+                "-f", "v4l2",
+                virtualCam
+        );
+
+        ProcessBuilder ffmpegRawPb = new ProcessBuilder(
+                "ffmpeg",
+                "-f", "rawvideo",
+                "-pix_fmt", "gray10le",   // for SRGGB10, or "yuyv422"/"rgb24" depending on Pi config
+                "-s", "640x480",
+                "-r", "30",
+                "-i", "-",
+                "-pix_fmt", "yuv420p",    // optional: convert to a more standard format
                 "-vcodec", "mjpeg",
                 "-f", "v4l2",
                 virtualCam

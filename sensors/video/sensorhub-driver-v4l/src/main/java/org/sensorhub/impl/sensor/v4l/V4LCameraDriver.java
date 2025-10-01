@@ -21,8 +21,11 @@ import au.edu.jcu.v4l4j.DeviceInfo;
 import au.edu.jcu.v4l4j.ImageFormat;
 import au.edu.jcu.v4l4j.VideoDevice;
 import org.slf4j.LoggerFactory;
+import org.vast.sensorML.SMLUtils;
+import org.vast.xml.XMLWriterException;
 
 import java.io.IOException;
+import java.util.UUID;
 
 
 /**
@@ -167,8 +170,24 @@ public class V4LCameraDriver extends AbstractSensorModule<V4LCameraConfig>
         // start video streaming
         if (dataInterface != null)
             dataInterface.start();
+
+        SMLUtils smlUtils = new SMLUtils(SMLUtils.V2_1);
+
+        try {
+            smlUtils.writeProcess(System.out, this.getCurrentDescription(), true);
+        } catch (XMLWriterException e) {
+            throw new RuntimeException(e);
+        }
     }
 
+//    public void writeAsXML(V4LCameraDriver this, V4LCameraConfig config) throws XMLWriterException, SensorHubException {
+//        SMLUtils smlUtils = new SMLUtils(SMLUtils.V2_1);
+//        V4LCameraDriver v4LCameraDriver = new V4LCameraDriver();
+//        V4LCameraConfig cameraConfig = new V4LCameraConfig();
+//        config.id = UUID.randomUUID().toString();
+//        this.init(config);
+//        smlUtils.writeProcess(System.out, this.getCurrentDescription(), true);
+//    }
 
     @Override
     protected void doStop()
@@ -184,8 +203,14 @@ public class V4LCameraDriver extends AbstractSensorModule<V4LCameraConfig>
             videoDevice.release();
             videoDevice = null;
         }
-        if (virtualCam.isRunning()){
-            virtualCam.stop();
+        if (virtualCam != null) {
+            try {
+                if (virtualCam.isRunning()) {
+                    virtualCam.stop();
+                }
+            } catch (Exception e) {
+                throw new RuntimeException(e);
+            }
         }
     }
 

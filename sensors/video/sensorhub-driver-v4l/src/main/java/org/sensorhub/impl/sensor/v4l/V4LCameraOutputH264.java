@@ -84,9 +84,13 @@ public class V4LCameraOutputH264 extends V4LCameraOutput implements CaptureCallb
     {
         if (frameGrabber == null)
         {
-            frameGrabber = parentSensor.videoDevice.getRawFrameGrabber(camParams.imgWidth, camParams.imgHeight, 0, V4L4JConstants.STANDARD_WEBCAM, imgFormat);
-            //frameGrabber = parentSensor.videoDevice.getJPEGFrameGrabber(camParams.imgWidth, camParams.imgHeight, 0, V4L4JConstants.STANDARD_WEBCAM, 80);
-            //frameGrabber.setFrameInterval(1, camParams.frameRate);
+            try {
+                frameGrabber = parentSensor.videoDevice.getRawFrameGrabber(camParams.imgWidth, camParams.imgHeight, 0, V4L4JConstants.STANDARD_WEBCAM, imgFormat);
+                //frameGrabber = parentSensor.videoDevice.getJPEGFrameGrabber(camParams.imgWidth, camParams.imgHeight, 0, V4L4JConstants.STANDARD_WEBCAM, 80);
+                //frameGrabber.setFrameInterval(1, camParams.frameRate);
+            } catch (V4L4JException e) {
+                throw new RuntimeException(e);
+            }
         }
     }
 
