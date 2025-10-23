@@ -114,6 +114,7 @@ public class OPS241ASensor extends AbstractSensorModule<OPS241AConfig> implement
 
             if(!config.simMode){
             // init comm provider
+                mockGen = null;
                 if (commProvider == null) {
                     // we need to recreate comm provider here because it can be changed by UI
                     // TODO do that in updateConfig
@@ -129,10 +130,10 @@ public class OPS241ASensor extends AbstractSensorModule<OPS241AConfig> implement
                         throw e;
                     }
                 } try {
-//                     establishRxTxConnection(config.RxTxSettings.portAddress, config.RxTxSettings.baudRate); // ESTABLISH RxTx CONNECTION
+                     establishRxTxConnection(config.RxTxSettings.portAddress, config.RxTxSettings.baudRate); // ESTABLISH RxTx CONNECTION
                      sendSensorCommand(OPS241aConstants.RESET_SETTINGS_CMD);                         // RESET SENSOR TO REMOVE ANY PREVIOUS CONFIGURATION
                      sendSensorCommand(unitCommand);                                                 // Set Sensor Units
-                } catch (IOException e){ //| UnsupportedCommOperationException | PortInUseException e) {
+                } catch (IOException | UnsupportedCommOperationException | PortInUseException e){
                     throw new RuntimeException(e);
                 }
 
@@ -143,7 +144,7 @@ public class OPS241ASensor extends AbstractSensorModule<OPS241AConfig> implement
                 Thread readOPS241A = new Thread( this, "OPS241A Worker");
                 readOPS241A.start();    // This starts the the run() method
 
-            } else {
+            } else if (config.simMode){
 
                 mockGen = new SimulatedDataStream(this);
                 mockGen.start();
@@ -157,7 +158,9 @@ public class OPS241ASensor extends AbstractSensorModule<OPS241AConfig> implement
         if (serialPort != null){
             serialPort.close();
         }
-        mockGen.stop();
+        if (mockGen != null) {
+            mockGen.stop();
+        }
 
     }
 

@@ -171,7 +171,7 @@ public class RadarProcess extends ExecutableProcessImpl {
         ((AbstractDataComponentImpl)captureTimestampOut).setEncodingInfo(sampleTimeEnc);
 
         BinaryBlock mjpegEncodingOut = sweFactory.newBinaryBlock();
-        mjpegEncodingOut.setCompression("MJPEG");
+        mjpegEncodingOut.setCompression("JPEG");
         mjpegEncodingOut.setRef("/img");
         ((DataArrayImpl) captureImageOut).setEncodingInfo(mjpegEncodingOut);
 

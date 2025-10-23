@@ -258,6 +258,7 @@ public class FeatureDetectionProcess1 extends ExecutableProcessImpl {
 //
 //                    outputWidth.getData().setIntValue(imgWidth);
 //                    outputHeight.getData().setIntValue(imgHeight);
+//                    ((DataBlockByte) imgOut.getData()).setUnderlyingObject(imageFrame);
                     ((DataBlockCompressed) imgOut.getData()).setUnderlyingObject(imageFrame);
 
                     // Copy frame timestamp

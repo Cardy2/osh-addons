@@ -144,7 +144,15 @@ class FeatureDetector1 {
 
                 for (CascadeClassifier classifier : classifiers) {
 
-                    classifier.detectMultiScale(mat, features);
+//                    classifier.detectMultiScale(mat, features);
+//                    Mat resized = new Mat();
+//                    opencv_imgproc.resize(mat, resized, new Size(mat.cols() * 2, mat.rows() * 2)); // upscale 2x
+                    classifier.detectMultiScale(
+                            mat, features,
+                            1.05, 3, 0,
+                            new Size(mat.cols() / 6, mat.rows() / 6),
+                            new Size(mat.cols(), mat.rows())
+                    );
 
                     logger.debug("Detecting features");
 
@@ -172,10 +180,6 @@ class FeatureDetector1 {
                         Rect feature = features.get(i);
                         Rect match = new Rect(feature.x(), feature.y(), feature.width(), feature.height());
 
-
-                        // Color given as BGR instead of RGB
-                        rectangle(mat, feature, new Scalar(0, 255, 255.0, 1.0));
-
                         bboxData.setIntValue(idx++, feature.x());
                         bboxData.setIntValue(idx++, feature.y());
                         bboxData.setIntValue(idx++, feature.width());
@@ -183,11 +187,15 @@ class FeatureDetector1 {
 
                         System.out.println(
                                 "featureBbox=" + String.format("x=%d,y=%d,w=%d,h=%d",
-                                                feature.x(),
-                                                feature.y(),
-                                                feature.width(),
-                                                feature.height())
+                                                feature.x()/2,
+                                                feature.y()/2,
+                                                feature.width()/2,
+                                                feature.height()/2)
                         );
+
+//                        rectangle(mat, match, new Scalar(0, 255, 255, 1.0));
+                        // Color given as BGR instead of RGB
+                        rectangle(mat, feature, new Scalar(0, 255, 255.0, 1.0));
 
 //                        safeMat.release();
 

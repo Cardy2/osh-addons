@@ -35,62 +35,114 @@ public class VirtualCam {
                 "libcamera-vid",
                 "-t", "0",
                 "--inline",
-                "--width", "1280",
-                "--height", "960",
+                "--width", "640",
+                "--height", "480",
                 "--framerate", "30",
                 "--codec", "yuv420",
                 "--output", "-"
         );
 
+
         ProcessBuilder ffmpegPb = new ProcessBuilder(
                 "ffmpeg",
                 "-f", "rawvideo",
                 "-pix_fmt", "yuv420p",
-                "-s", "1280x960",
+                "-s", "640x480",       // input size from Java
                 "-r", "30",
                 "-i", "-",
-//                "-vf", "scale=1280:960",   // upscale inside FFmpeg
+                "-vf", "scale=1280:960",   // upscale inside FFmpeg
                 "-b:v", "2M",              // higher bitrate = sharper output
                 "-vcodec", vcodec,
                 "-f", "v4l2",
                 virtualCam
         );
-//        ProcessBuilder ffmpegPb = new ProcessBuilder(
+
+//        ProcessBuilder libcameraRawPb = new ProcessBuilder(
+//                "libcamera-raw",
+//                "-t", "0",                // run indefinitely
+//                "--width", "640",
+//                "--height", "480",
+//                "--framerate", "30",
+//                "--output", "-"           // write raw frames to stdout
+//        );
+
+//        ProcessBuilder ffmpegRawPb = new ProcessBuilder(
 //                "ffmpeg",
 //                "-f", "rawvideo",
-//                "-pix_fmt", "yuv420p",
+//                "-pix_fmt", "gray10le",   // for SRGGB10, or "yuyv422"/"rgb24" depending on Pi config
 //                "-s", "640x480",
 //                "-r", "30",
 //                "-i", "-",
-//                "-vcodec", "rawvideo",
-//                "-pix_fmt", "yuyv422",
+//                "-pix_fmt", "yuv420p",    // optional: convert to a more standard format
+//                "-vcodec", vcodec,
 //                "-f", "v4l2",
-//                "/dev/video2"
+//                virtualCam
 //        );
 
 
+//        Process libcamera = libcameraPb.start();
+//        Process ffmpeg = ffmpegPb.start();
+//
+//        Thread pipeThread = new Thread(() -> {
+//            try (InputStream camOut = libcamera.getInputStream();
+//                 OutputStream ffmpegIn = ffmpeg.getOutputStream()) {
+//                camOut.transferTo(ffmpegIn);
+//            } catch (IOException e) {
+//                e.printStackTrace();
+//            }
+//        });
+//
+//        pipeThread.start();
+//
+//        // Wait for libcamera process to finish
+//        int libCameraExit = libcamera.waitFor();
+//
+//        // Wait for FFmpeg to finish
+//        int ffmpegExit = ffmpeg.waitFor();
+//
+//        // Wait for the pipe thread to end
+//        pipeThread.join();
+//
+//        System.out.println("Pipeline ended. libcamera exit=" + libCameraExit + ", ffmpeg exit=" + ffmpegExit);
+//    }
 
-        ProcessBuilder ffmpegRawPb = new ProcessBuilder(
-                "ffmpeg",
-                "-f", "rawvideo",
-                "-pix_fmt", "gray10le",   // for SRGGB10, or "yuyv422"/"rgb24" depending on Pi config
-                "-s", "640x480",
-                "-r", "30",
-                "-i", "-",
-                "-pix_fmt", "yuv420p",    // optional: convert to a more standard format
-                "-vcodec", vcodec,
-                "-f", "v4l2",
-                virtualCam
-        );
+        // Start processes
+//        libCamera = libcameraPb.start();
+//        ffmpeg = ffmpegPb.start();
+//
+//        try (
+//                InputStream camOut = libCamera.getInputStream();
+//                OutputStream ffmpegIn = ffmpeg.getOutputStream();
+//        ) {
+//            pipeThread = new Thread(() -> {
+//                try {
+//                    camOut.transferTo(ffmpegIn);
+//                } catch (IOException e) {
+//                    e.printStackTrace();
+//                }
+//            });
+//            pipeThread.start();
+//
+//            int libCameraExit = libCamera.waitFor();
+//            int ffmpegExit = ffmpeg.waitFor();
+//
+//            pipeThread.join();
+//
+//            System.out.println("libcamera exited with code " + libCameraExit);
+//            System.out.println("ffmpeg exited with code " + ffmpegExit);
+//        }
+//    }
 
         libcameraPb.redirectError(ProcessBuilder.Redirect.INHERIT);
         ffmpegPb.redirectError(ProcessBuilder.Redirect.INHERIT);
+
+
 
         // Start processes
         libCamera = libcameraPb.start();
         ffmpeg = ffmpegPb.start();
 
-        // Pipe libcamera stdout → ffmpeg stdin
+//      Pipe libcamera stdout → ffmpeg stdin
         pipeThread = new Thread(() -> {
             try (
                     InputStream camOut = libCamera.getInputStream();
@@ -103,7 +155,7 @@ public class VirtualCam {
         });
         pipeThread.start();
 
-        // Wait for processes if desired
+//       Wait for processes if desired
 //        int exitCode = ffmpeg.waitFor();
 //        System.out.println("ffmpeg exited with code " + exitCode);
 

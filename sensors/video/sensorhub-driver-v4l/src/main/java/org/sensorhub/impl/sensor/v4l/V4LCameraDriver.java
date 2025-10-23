@@ -92,7 +92,7 @@ public class V4LCameraDriver extends AbstractSensorModule<V4LCameraConfig>
 
         if (config.virtualCamEnabled) {
             try {
-                virtualCam = new VirtualCam(config.deviceName, config.virtualCam);
+                virtualCam = new VirtualCam(config.deviceName, config.virtualCam, config.vcodec);
                 virtualCam.start();
             } catch (IOException | InterruptedException e) {
                 throw new RuntimeException(e);
