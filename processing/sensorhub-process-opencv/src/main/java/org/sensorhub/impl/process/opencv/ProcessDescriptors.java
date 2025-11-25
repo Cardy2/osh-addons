@@ -26,8 +26,9 @@ public class ProcessDescriptors extends AbstractProcessProvider
         addImpl(ObjectTracking.INFO);
         addImpl(BboxCenter.INFO);
         addImpl(VideoDisplayCV.INFO);
-        addImpl(FeatureDetectionProcess1.INFO);
-        addImpl(RadarProcess.INFO);
+//        addImpl(FeatureDetectionProcess1.INFO);
+//        addImpl(RadarProcess.INFO);
+        addImpl(SpeedViolationDetectionProcess.INFO);
     }
 
 }
