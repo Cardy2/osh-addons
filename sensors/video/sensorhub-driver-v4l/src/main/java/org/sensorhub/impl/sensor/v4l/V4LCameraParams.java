@@ -17,9 +17,9 @@ package org.sensorhub.impl.sensor.v4l;
 
 public class V4LCameraParams implements Cloneable
 {
-    public String imgFormat = "MJPEG";
-    public int imgWidth = 1280;
-    public int imgHeight = 960;
+    public String imgFormat = "RGB";
+    public int imgWidth = 640;
+    public int imgHeight = 480;
     public int frameRate = 30;
     
     

@@ -132,7 +132,8 @@ public class OPS241ASensor extends AbstractSensorModule<OPS241AConfig> implement
                 } try {
                      establishRxTxConnection(config.RxTxSettings.portAddress, config.RxTxSettings.baudRate); // ESTABLISH RxTx CONNECTION
                      sendSensorCommand(OPS241aConstants.RESET_SETTINGS_CMD);                         // RESET SENSOR TO REMOVE ANY PREVIOUS CONFIGURATION
-                     sendSensorCommand(unitCommand);                                                 // Set Sensor Units
+                     sendSensorCommand(unitCommand);
+                     sendSensorCommand("U?");   // Set Sensor Units
                 } catch (IOException | UnsupportedCommOperationException | PortInUseException e){
                     throw new RuntimeException(e);
                 }
@@ -176,14 +177,23 @@ public class OPS241ASensor extends AbstractSensorModule<OPS241AConfig> implement
         logger.info("Sensor Message: {}", jsonMsg);
     }
 
-    public void handleSensorReading (String sensorReading) {
-        try {
-//            System.out.println(Double.parseDouble(sensorReading));
-            ops241aOutput.SetData(Double.parseDouble(sensorReading));
-        } catch (NumberFormatException e) {
-            System.out.println("Unknown reading: " + sensorReading);
+//    public void handleSensorReading (String sensorReading) {
+//        try {
+////            System.out.println(Double.parseDouble(sensorReading));
+//            ops241aOutput.SetData(Double.parseDouble(sensorReading));
+//        } catch (NumberFormatException e) {
+//            System.out.println("Unknown reading: " + sensorReading);
+//        }
+
+        public void handleSensorReading (String sensorReading) {
+            try {
+                System.out.println(sensorReading);
+                //        ops241aOutput.SetData(Double.parseDouble(sensorReading));     <---------comment this line out and just print out the SensorReading Info.
+            } catch (NumberFormatException e) {
+                System.out.println("Unknown reading: " + sensorReading);
+            }
         }
-    }
+
 
     // SEND A COMMAND TO THE SENSOR TO UPDATE SETTINGS OR RETRIEVE INFORMATION
     public void sendSensorCommand(String cmd) throws IOException {

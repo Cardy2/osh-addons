@@ -26,6 +26,10 @@ import au.edu.jcu.v4l4j.DeviceInfo;
 import au.edu.jcu.v4l4j.V4L4JConstants;
 import au.edu.jcu.v4l4j.VideoFrame;
 import au.edu.jcu.v4l4j.exceptions.V4L4JException;
+import org.vast.data.DataBlockMixed;
+
+import java.util.Arrays;
+import java.util.Objects;
 
 
 /**
@@ -78,29 +82,77 @@ public class V4LCameraOutputRGB extends V4LCameraOutput implements CaptureCallba
         }
     }
 
+    protected void initFrameGrabber(V4LCameraParams camParams) throws V4L4JException {
+        if (this.frameGrabber == null) {
+            this.frameGrabber = ((V4LCameraDriver)this.parentSensor).videoDevice.getRGBFrameGrabber(camParams.imgWidth, camParams.imgHeight, 0, 7);
+        }
 
-    protected void initFrameGrabber(V4LCameraParams camParams) throws V4L4JException
-    {
-        if (frameGrabber == null)
-            frameGrabber = parentSensor.videoDevice.getRawFrameGrabber(camParams.imgWidth, camParams.imgHeight, 0, V4L4JConstants.STANDARD_WEBCAM);
-//            frameGrabber = parentSensor.videoDevice.getRGBFrameGrabber(camParams.imgWidth, camParams.imgHeight, 0, V4L4JConstants.STANDARD_WEBCAM);
+        System.out.println(this.frameGrabber.getImageFormat());
     }
 
+//    protected void initFrameGrabber(V4LCameraParams camParams) throws V4L4JException {
+//        if (frameGrabber == null) {
+//
+////            if (Objects.equals(camParams.imgFormat, "RGB")) {
+//                frameGrabber = parentSensor.videoDevice.getRGBFrameGrabber(camParams.imgWidth, camParams.imgHeight, 0, V4L4JConstants.IMF_RGB24);
+////            } else if (Objects.equals(camParams.imgFormat, "BGR")) {
+////                frameGrabber = parentSensor.videoDevice.getBGRFrameGrabber(camParams.imgWidth, camParams.imgHeight, 0, V4L4JConstants.IMF_BGR24);
+////            } else {
+////                frameGrabber = parentSensor.videoDevice.getRGBFrameGrabber(camParams.imgWidth, camParams.imgHeight, 0, V4L4JConstants.STANDARD_WEBCAM);
+////
+////            }
+//            System.out.println(frameGrabber.getImageFormat());
+//
+//        }
+//    }
 
-    @Override
-    public void processFrame(VideoFrame frame)
-    {
-        //double samplingTime = frame.getCaptureTime() / 1000.;
-        DataBlock dataBlock;
-        if (latestRecord == null)
-            dataBlock = camDataStruct.createDataBlock();
-        else
-            dataBlock = latestRecord.renew();
-        ((DataBlockByte)dataBlock).setUnderlyingObject(frame.getBytes());
 
-        // update latest record and send event
-        latestRecord = dataBlock;
-        latestRecordTime = System.currentTimeMillis();
-        eventHandler.publish(new DataEvent(latestRecordTime, this, dataBlock));
+//    @Override
+//    protected void processFrame(VideoFrame frame) {
+//
+//        DataBlock dataBlock;
+//        if (latestRecord == null)
+//            dataBlock = dataStream.getElementType().createDataBlock();
+////            dataBlock = camDataStruct.createDataBlock();
+//        else
+//            dataBlock = latestRecord.renew();
+////
+//        dataBlock.setDoubleValue(getJulianTimeStamp(frame.getCaptureTime()));
+//
+//        byte[] frameData = new byte[frame.getFrameLength()];
+//        System.arraycopy(frame.getBytes(), 0, frameData, 0, frameData.length);
+//        ((DataBlockMixed)dataBlock).getUnderlyingObject()[1].setUnderlyingObject(frameData);
+//
+////        dataBlock.setUnderlyingObject(frame.getBytes());
+//
+////        // update latest record and send event
+//        latestRecord = dataBlock;
+//        latestRecordTime = System.currentTimeMillis();
+//        eventHandler.publish(new DataEvent(latestRecordTime, this, dataBlock));
+//    }
+
+
+protected void processFrame(VideoFrame frame) {
+
+    DataBlock dataBlock = (this.latestRecord == null)
+            ? this.dataStream.getElementType().createDataBlock()
+            : this.latestRecord.renew();
+
+    dataBlock.setDoubleValue(this.getJulianTimeStamp(frame.getCaptureTime()));
+
+    Object[] fields = ((DataBlockMixed) dataBlock).getUnderlyingObject();
+    DataBlockByte imgBlock = (DataBlockByte) fields[1];
+    byte[] frameData = imgBlock.getUnderlyingObject();
+
+    if (frameData == null || frameData.length != frame.getFrameLength()) {
+        frameData = new byte[frame.getFrameLength()];
+        imgBlock.setUnderlyingObject(frameData);
     }
+
+    System.arraycopy(frame.getBytes(), 0, frameData, 0, frame.getFrameLength());
+
+    this.latestRecord = dataBlock;
+    this.latestRecordTime = System.currentTimeMillis();
+    this.eventHandler.publish(new DataEvent(this.latestRecordTime, this, new DataBlock[]{dataBlock}));
+}
 }

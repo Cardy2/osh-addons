@@ -117,4 +117,5 @@ public class V4LCameraOutputMJPEG extends V4LCameraOutput implements CaptureCall
         latestRecordTime = System.currentTimeMillis();
         eventHandler.publish(new DataEvent(latestRecordTime, this, dataBlock));
     }
+
 }
