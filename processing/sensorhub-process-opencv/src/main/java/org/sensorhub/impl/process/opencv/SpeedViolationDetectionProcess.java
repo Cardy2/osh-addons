@@ -16,8 +16,10 @@ import org.bytedeco.opencv.opencv_objdetect.CascadeClassifier;
 import org.sensorhub.api.processing.OSHProcessInfo;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
+import org.vast.data.AbstractDataComponentImpl;
 import org.vast.data.DataArrayImpl;
 import org.vast.data.DataBlockByte;
+import org.vast.data.DataBlockCompressed;
 import org.vast.process.ExecutableProcessImpl;
 import org.vast.process.ProcessException;
 import org.vast.swe.SWEHelper;
@@ -100,6 +102,11 @@ public class SpeedViolationDetectionProcess extends ExecutableProcessImpl {
             this.velocity = Math.abs(velocity); // Store absolute value
         }
     }
+
+    // Time-windowed buffer for velocity readings (keep last 10 seconds)
+    private static final double VELOCITY_BUFFER_WINDOW_SECONDS = 10.0;
+    private final List<VelocityReading> velocityBuffer = new ArrayList<>();
+
     private Map<Integer, List<VelocityReading>> vehicleVelocityHistory = new HashMap<>();
 
     public SpeedViolationDetectionProcess() {
@@ -163,11 +170,6 @@ public class SpeedViolationDetectionProcess extends ExecutableProcessImpl {
                         .asSamplingTimeIsoUTC()
                         .label("Violation Capture Time")
                         .build())
-                .addField("foiId", violationFoiId = sweFactory.createCount()
-                        .id("FOI_ID")
-                        .label("FOI ID")
-                        .description("Feature of Interest ID of the violating vehicle")
-                        .build())
                 .addField("width", violationWidth = sweFactory.createCount()
                         .id("IMG_WIDTH")
                         .label("Image Width")
@@ -180,9 +182,26 @@ public class SpeedViolationDetectionProcess extends ExecutableProcessImpl {
                         violationWidth, violationHeight, DataType.BYTE))
                 .build());
 
-        BinaryBlock jpegEncoding = sweFactory.newBinaryBlock();
-        jpegEncoding.setCompression("JPEG");
-        ((DataArrayImpl) violationImage).setEncodingInfo(jpegEncoding);
+        BinaryComponent sampleTimeEnc = sweFactory.newBinaryComponent();
+        sampleTimeEnc.setRef("/time");
+        sampleTimeEnc.setCdmDataType(DataType.DOUBLE);
+        ((AbstractDataComponentImpl)violationTimestamp).setEncodingInfo(sampleTimeEnc);
+
+        BinaryBlock mjpegEncodingOut = sweFactory.newBinaryBlock();
+        mjpegEncodingOut.setCompression("JPEG");
+        mjpegEncodingOut.setRef("/img");
+        ((DataArrayImpl) violationImage).setEncodingInfo(mjpegEncodingOut);
+
+
+
+        outputData.add("speedViolatorFoiId", sweFactory.createRecord()
+                .label("Violator FOI ID")
+                .addField("foiId", violationFoiId = sweFactory.createCount()
+                        .id("FOI_ID")
+                        .label("FOI ID")
+                        .description("Feature of Interest ID of the violating vehicle")
+                        .build())
+                .build());
 
         // Optional: Vehicle detection metadata (for monitoring/debugging)
         outputData.add("detectedVehicles", cvHelper.createRecord()
@@ -230,32 +249,136 @@ public class SpeedViolationDetectionProcess extends ExecutableProcessImpl {
         logger.debug("Initialized");
     }
 
-    @Override
-    public void execute() throws ProcessException {
-        logger.debug("Processing event");
+@Override
+public void execute() throws ProcessException {
+    logger.debug("Processing event - checking input availability");
 
-        try {
-            // Check which input triggered execution (video or velocity)
-            boolean hasVideoInput = imgIn.hasData() && inputTimeStamp.hasData();
-            boolean hasVelocityInput = inputVelocity.hasData() && velocityTimestamp.hasData();
+    try {
+        // Process video frame and detect vehicles
+        processVideoFrame();
 
-            // Process video frame if available
-            if (hasVideoInput) {
-                processVideoFrame();
+        // Store current velocity reading in time-windowed buffer
+        storeVelocityReading();
+
+        // Check for completed vehicle detections and evaluate violations
+        evaluateViolations();
+
+    } catch (Exception e) {
+        logger.error("Error during execution", e);
+        throw new ProcessException("Error during speed violation detection", e);
+    }
+}
+
+    private void storeVelocityReading() {
+
+        double velocityTime = velocityTimestamp.getData().getDoubleValue();
+        double velocity = inputVelocity.getData().getDoubleValue();
+
+        // Add to buffer
+        velocityBuffer.add(new VelocityReading(velocityTime, velocity));
+
+        // Clean up old readings outside the time window
+        double currentTime = velocityTime;
+        velocityBuffer.removeIf(vr ->
+                (currentTime - vr.timestamp) > VELOCITY_BUFFER_WINDOW_SECONDS);
+
+        logger.debug("Stored velocity reading: {} at time {}, buffer size: {}",
+                velocity, velocityTime, velocityBuffer.size());
+
+        // Associate velocity with active vehicles
+        associateVelocityWithActiveVehicles(velocityTime, velocity);
+    }
+
+    private void associateVelocityWithActiveVehicles(double velocityTime, double velocity) {
+        // Store velocity reading for all active vehicles within their detection period
+        for (VehicleTracking vt : activeVehicles.values()) {
+            if (vt.isActive()) {
+                double vehicleStart = vt.getDetectionStart();
+                double vehicleEnd = vt.getDetectionEnd();
+
+                // Check if velocity reading is within vehicle's detection period
+                if (velocityTime >= vehicleStart &&
+                        (vehicleEnd == vehicleStart || velocityTime <= vehicleEnd)) {
+
+                    vehicleVelocityHistory.computeIfAbsent(vt.getId(), k -> new ArrayList<>())
+                            .add(new VelocityReading(velocityTime, velocity));
+
+                    logger.debug("Associated velocity {} with vehicle FOI ID {} at time {}",
+                            velocity, vt.getId(), velocityTime);
+                }
             }
-
-            // Process velocity input if available (may come at different rate)
-            if (hasVelocityInput) {
-                processVelocityInput();
-            }
-
-            // Check for completed vehicle detections and evaluate violations
-            evaluateViolations();
-
-        } catch (Exception e) {
-            logger.error("Error during execution", e);
-            throw new ProcessException("Error during speed violation detection", e);
         }
+    }
+
+    // Updated evaluateViolations to use buffer for ended vehicles
+    private void evaluateViolations() {
+        if (thresholdParam == null || !thresholdParam.hasData()) {
+            logger.debug("Threshold parameter not set, skipping violation evaluation");
+            return;
+        }
+
+        double threshold = thresholdParam.getData().getDoubleValue();
+        List<Integer> vehiclesToRemove = new ArrayList<>();
+
+        // Check all vehicles that have ended
+        for (Map.Entry<Integer, VehicleTracking> entry : activeVehicles.entrySet()) {
+            int foiId = entry.getKey();
+            VehicleTracking vt = entry.getValue();
+
+            if (!vt.isActive()) {
+                List<VelocityReading> velocities = vehicleVelocityHistory.get(foiId);
+
+                // If no velocities stored yet, query the buffer for this vehicle's timeframe
+                if (velocities == null || velocities.isEmpty()) {
+                    velocities = queryVelocityBuffer(vt.getDetectionStart(), vt.getDetectionEnd());
+                    if (velocities != null && !velocities.isEmpty()) {
+                        vehicleVelocityHistory.put(foiId, velocities);
+                    }
+                }
+
+                if (velocities != null && !velocities.isEmpty()) {
+                    // Find maximum velocity during detection period
+                    double maxVelocity = velocities.stream()
+                            .mapToDouble(v -> v.velocity)
+                            .max()
+                            .orElse(0.0);
+
+                    logger.debug("Vehicle FOI ID {}: maxVelocity={}, threshold={}",
+                            foiId, maxVelocity, threshold);
+
+                    if (maxVelocity > threshold) {
+                        logger.info("SPEED VIOLATION DETECTED: FOI ID={}, maxVelocity={}, threshold={}",
+                                foiId, maxVelocity, threshold);
+                        captureViolationImage(vt, foiId);
+                    }
+                } else {
+                    logger.debug("No velocity readings found for vehicle FOI ID {} in period [{}, {}]",
+                            foiId, vt.getDetectionStart(), vt.getDetectionEnd());
+                }
+
+                vehiclesToRemove.add(foiId);
+            }
+        }
+
+        // Remove ended vehicles from velocity history
+        for (Integer foiId : vehiclesToRemove) {
+            vehicleVelocityHistory.remove(foiId);
+        }
+    }
+
+    /**
+     * Query velocity buffer for readings within a time range.
+     */
+    private List<VelocityReading> queryVelocityBuffer(double startTime, double endTime) {
+        List<VelocityReading> result = new ArrayList<>();
+
+        for (VelocityReading vr : velocityBuffer) {
+            if (vr.timestamp >= startTime && vr.timestamp <= endTime) {
+                result.add(vr);
+            }
+        }
+
+        return result;
     }
 
     private void processVideoFrame() throws ProcessException {
@@ -269,67 +392,65 @@ public class SpeedViolationDetectionProcess extends ExecutableProcessImpl {
                     imgData.getClass().getSimpleName());
         }
 
-        int imgWidth = inputWidth.getData().getIntValue();
-        int imgHeight = inputHeight.getData().getIntValue();
+            int imgWidth = inputWidth.getData().getIntValue();
+            int imgHeight = inputHeight.getData().getIntValue();
 
-        if (imgWidth <= 0 || imgHeight <= 0) {
-            throw new ProcessException("Invalid image dimensions: " + imgWidth + "x" + imgHeight);
-        }
+            if (imgWidth <= 0 || imgHeight <= 0) {
+                throw new ProcessException("Invalid image dimensions: " + imgWidth + "x" + imgHeight);
+            }
 
-        byte[] imageFrame = ((DataBlockByte) imgData).getUnderlyingObject();
+            byte[] imageFrame = ((DataBlockByte) imgData).getUnderlyingObject();
 
-        if (imageFrame.length != imgWidth * imgHeight * 3) {
-            logger.warn("Image frame size {} doesn't match expected size {} for dimensions {}x{}",
-                    imageFrame.length, imgWidth * imgHeight * 3, imgWidth, imgHeight);
-        }
+            if (imageFrame.length != imgWidth * imgHeight * 3) {
+                logger.warn("Image frame size {} doesn't match expected size {} for dimensions {}x{}",
+                        imageFrame.length, imgWidth * imgHeight * 3, imgWidth, imgHeight);
+            }
 
-        BytePointer ptr = null;
-        try {
-            // Wrap the existing byte array
-            ptr = new BytePointer(imageFrame);
+            BytePointer ptr = null;
+            try {
+                // Wrap the existing byte array
+                ptr = new BytePointer(imageFrame);
 
-            // Create Mat (rows = height, cols = width)
-            mat = new Mat(imgHeight, imgWidth, CV_8UC3, ptr);
+                // Create Mat (rows = height, cols = width)
+                mat = new Mat(imgHeight, imgWidth, CV_8UC3, ptr);
 
-            // Detect vehicles using SpeedTrapFeatureDetector
-            SpeedViolationFeatureDetector detector = new SpeedViolationFeatureDetector(
-                    cascadeClassifiers, mat, bboxList, numVehicles, imgWidth, imgHeight,
-                    inputTimeStamp, vehicleDetected, detectionStartTime,
-                    detectionEndTime, foiId, nextId, activeVehicles, started);
+                // Detect vehicles using SpeedTrapFeatureDetector
+                SpeedViolationFeatureDetector detector = new SpeedViolationFeatureDetector(
+                        cascadeClassifiers, mat, bboxList, numVehicles, imgWidth, imgHeight,
+                        inputTimeStamp, vehicleDetected, detectionStartTime,
+                        detectionEndTime, foiId, nextId, activeVehicles, started);
 
-            detector.detectFeatures();
+                detector.detectFeatures();
 
-            // Update tracking state
-            nextId = detector.getNextId();
-            activeVehicles = detector.getActiveVehicles();
-            started = detector.getStarted();
+                // Update tracking state
+                nextId = detector.getNextId();
+                activeVehicles = detector.getActiveVehicles();
+                started = detector.getStarted();
 
-            // Store processed frame for potential violation capture
-            if (mat != null && !mat.isNull()) {
-                if (lastProcessedFrame != null) {
-                    lastProcessedFrame.close();
+                // Store processed frame for potential violation capture
+                if (mat != null && !mat.isNull()) {
+                    if (lastProcessedFrame != null) {
+                        lastProcessedFrame.close();
+                    }
+                    lastProcessedFrame = mat.clone();
                 }
-                lastProcessedFrame = mat.clone();
-            }
 
-            // Update metadata outputs
-            updateVehicleMetadata();
+                // Update metadata outputs
+                updateVehicleMetadata();
 
-        } catch (Exception e) {
-            logger.error("Error processing video frame", e);
-            throw new ProcessException("Error processing video frame", e);
-        } finally {
-            // Note: Don't release mat here - it's used by lastProcessedFrame
-            if (ptr != null) {
-                ptr.close();
+            } catch (Exception e) {
+                logger.error("Error processing video frame", e);
+                throw new ProcessException("Error processing video frame", e);
+            } finally {
+                // Note: Don't release mat here - it's used by lastProcessedFrame
+                if (ptr != null) {
+                    ptr.close();
+                }
             }
         }
-    }
+
 
     private void processVelocityInput() {
-        if (!inputVelocity.hasData() || !velocityTimestamp.hasData()) {
-            return;
-        }
 
         double velocityTime = velocityTimestamp.getData().getDoubleValue();
         double velocity = inputVelocity.getData().getDoubleValue();
@@ -356,55 +477,51 @@ public class SpeedViolationDetectionProcess extends ExecutableProcessImpl {
         }
     }
 
-    private void evaluateViolations() {
-        if (thresholdParam == null || !thresholdParam.hasData()) {
-            logger.debug("Threshold parameter not set, skipping violation evaluation");
-            return;
-        }
-
-        double threshold = thresholdParam.getData().getDoubleValue();
-        List<Integer> vehiclesToRemove = new ArrayList<>();
-
-        // Check all vehicles that have ended
-        for (Map.Entry<Integer, VehicleTracking> entry : activeVehicles.entrySet()) {
-            int foiId = entry.getKey();
-            VehicleTracking vt = entry.getValue();
-
-            // Only check vehicles that are no longer active (ended)
-            if (!vt.isActive()) {
-                List<VelocityReading> velocities = vehicleVelocityHistory.get(foiId);
-
-                if (velocities != null && !velocities.isEmpty()) {
-                    // Find maximum velocity during detection period
-                    double maxVelocity = velocities.stream()
-                            .mapToDouble(v -> v.velocity)
-                            .max()
-                            .orElse(0.0);
-
-                    logger.debug("Vehicle FOI ID {}: maxVelocity={}, threshold={}",
-                            foiId, maxVelocity, threshold);
-
-                    if (maxVelocity > threshold) {
-                        logger.info("SPEED VIOLATION DETECTED: FOI ID={}, maxVelocity={}, threshold={}",
-                                foiId, maxVelocity, threshold);
-
-                        // Capture violation image
-                        captureViolationImage(vt, foiId);
-                    }
-                } else {
-                    logger.debug("No velocity readings recorded for vehicle FOI ID {}", foiId);
-                }
-
-                // Clean up velocity history for ended vehicles
-                vehiclesToRemove.add(foiId);
-            }
-        }
-
-        // Remove ended vehicles from velocity history
-        for (Integer foiId : vehiclesToRemove) {
-            vehicleVelocityHistory.remove(foiId);
-        }
-    }
+//    private void evaluateViolations() {
+//
+//        double threshold = thresholdParam.getData().getDoubleValue();
+//        List<Integer> vehiclesToRemove = new ArrayList<>();
+//
+//        // Check all vehicles that have ended
+//        for (Map.Entry<Integer, VehicleTracking> entry : activeVehicles.entrySet()) {
+//            int foiId = entry.getKey();
+//            VehicleTracking vt = entry.getValue();
+//
+//            // Only check vehicles that are no longer active (ended)
+//            if (!vt.isActive()) {
+//                List<VelocityReading> velocities = vehicleVelocityHistory.get(foiId);
+//
+//                if (velocities != null && !velocities.isEmpty()) {
+//                    // Find maximum velocity during detection period
+//                    double maxVelocity = velocities.stream()
+//                            .mapToDouble(v -> v.velocity)
+//                            .max()
+//                            .orElse(0.0);
+//
+//                    logger.debug("Vehicle FOI ID {}: maxVelocity={}, threshold={}",
+//                            foiId, maxVelocity, threshold);
+//
+//                    if (maxVelocity > threshold) {
+//                        logger.info("SPEED VIOLATION DETECTED: FOI ID={}, maxVelocity={}, threshold={}",
+//                                foiId, maxVelocity, threshold);
+//
+//                        // Capture violation image
+//                        captureViolationImage(vt, foiId);
+//                    }
+//                } else {
+//                    logger.debug("No velocity readings recorded for vehicle FOI ID {}", foiId);
+//                }
+//
+//                // Clean up velocity history for ended vehicles
+//                vehiclesToRemove.add(foiId);
+//            }
+//        }
+//
+//        // Remove ended vehicles from velocity history
+//        for (Integer foiId : vehiclesToRemove) {
+//            vehicleVelocityHistory.remove(foiId);
+//        }
+//    }
 
     private void captureViolationImage(VehicleTracking vt, int foiId) {
         if (lastProcessedFrame == null || lastProcessedFrame.isNull()) {
@@ -449,9 +566,10 @@ public class SpeedViolationDetectionProcess extends ExecutableProcessImpl {
 
             // Publish violation image
             violationImage.getArraySizeComponent().getData().setIntValue(jpegImage.length);
-            violationImage.getData().setUnderlyingObject(jpegImage);
-            violationWidth.getData().setIntValue(width);
-            violationHeight.getData().setIntValue(height);
+
+//            violationWidth.getData().setIntValue(width);
+//            violationHeight.getData().setIntValue(height);
+            violationImage.getData() .setUnderlyingObject(jpegImage);
             violationFoiId.getData().setIntValue(foiId);
             violationTimestamp.getData().setDoubleValue(vt.getDetectionEnd());
 
@@ -496,59 +614,91 @@ public class SpeedViolationDetectionProcess extends ExecutableProcessImpl {
             detectionEndTime.getData().setDoubleValue(latestEnded.getDetectionEnd());
         }
     }
+//
+//    private void loadClassifiers() throws ProcessException {
+//        logger.debug("Loading classifiers");
+//
+//        cascadeClassifiers.clear();
+//
+//        if (feature == null || !feature.hasData()) {
+//            throw new ProcessException(INIT_ERROR_MSG + ": Feature parameter not configured");
+//        }
+//
+//        Object featureData = feature.getData().getUnderlyingObject();
+//        if (featureData == null || !(featureData instanceof String[])) {
+//            throw new ProcessException(INIT_ERROR_MSG +
+//                    ": Feature parameter must be a non-null String array");
+//        }
+//
+//        String[] classifierIds = (String[]) featureData;
+//        if (classifierIds.length == 0) {
+//            throw new ProcessException(INIT_ERROR_MSG +
+//                    ": At least one classifier must be specified");
+//        }
+//
+//        for (String classifierId : classifierIds) {
+//            try {
+//                FeaturesEnum featureEnum = FeaturesEnum.valueOf(classifierId);
+//                URL resourceUrl = getClass().getResource(featureEnum.getResource());
+//
+//                if (resourceUrl == null) {
+//                    throw new ProcessException("Failed to load classifier: " + featureEnum);
+//                }
+//
+//                File resourceFile = Loader.cacheResource(resourceUrl);
+//                String path = resourceFile.getAbsolutePath();
+//                cascadeClassifiers.add(new CascadeClassifier(path));
+//                logger.debug("Loaded classifier: {}", path);
+//
+//            } catch (IllegalArgumentException e) {
+//                throw new ProcessException("Unknown feature type: " + classifierId, e);
+//            } catch (IOException e) {
+//                throw new ProcessException("Error loading classifier: " + classifierId, e);
+//            }
+//        }
+//
+//        if (cascadeClassifiers.isEmpty()) {
+//            throw new ProcessException(INIT_ERROR_MSG + ": No classifiers were successfully loaded");
+//        }
+//
+//        logger.debug("Successfully loaded {} classifiers", cascadeClassifiers.size());
+//    }
 
-    private void loadClassifiers() throws ProcessException {
+    private void loadClassifiers() {
+
         logger.debug("Loading classifiers");
 
         cascadeClassifiers.clear();
+        String[] classifierIds = (String[]) feature.getData().getUnderlyingObject();
 
-        if (feature == null || !feature.hasData()) {
-            throw new ProcessException(INIT_ERROR_MSG + ": Feature parameter not configured");
-        }
+        for (String classifierId: classifierIds) {
+            FeaturesEnum feature = FeaturesEnum.valueOf(classifierId);
+            URL resourceUrl = getClass().getResource(feature.getResource());
+            File resourceFile;
 
-        Object featureData = feature.getData().getUnderlyingObject();
-        if (featureData == null || !(featureData instanceof String[])) {
-            throw new ProcessException(INIT_ERROR_MSG +
-                    ": Feature parameter must be a non-null String array");
-        }
-
-        String[] classifierIds = (String[]) featureData;
-        if (classifierIds.length == 0) {
-            throw new ProcessException(INIT_ERROR_MSG +
-                    ": At least one classifier must be specified");
-        }
-
-        for (String classifierId : classifierIds) {
             try {
-                FeaturesEnum featureEnum = FeaturesEnum.valueOf(classifierId);
-                URL resourceUrl = getClass().getResource(featureEnum.getResource());
-
-                if (resourceUrl == null) {
-                    throw new ProcessException("Failed to load classifier: " + featureEnum);
+                if(resourceUrl != null) {
+                    resourceFile = Loader.cacheResource(resourceUrl);
+                    String path = resourceFile.getAbsolutePath();
+                    cascadeClassifiers.add(new CascadeClassifier(path));
+                } else {
+                    logger.error("Failed loading classifier, {}", feature);
                 }
-
-                File resourceFile = Loader.cacheResource(resourceUrl);
-                String path = resourceFile.getAbsolutePath();
-                cascadeClassifiers.add(new CascadeClassifier(path));
-                logger.debug("Loaded classifier: {}", path);
-
-            } catch (IllegalArgumentException e) {
-                throw new ProcessException("Unknown feature type: " + classifierId, e);
             } catch (IOException e) {
-                throw new ProcessException("Error loading classifier: " + classifierId, e);
+                logger.error("Exception while loading classifiers, {}", e.toString());
             }
         }
-
-        if (cascadeClassifiers.isEmpty()) {
-            throw new ProcessException(INIT_ERROR_MSG + ": No classifiers were successfully loaded");
-        }
-
-        logger.debug("Successfully loaded {} classifiers", cascadeClassifiers.size());
+        logger.debug("Classifiers loaded");
     }
 
     @Override
     public void dispose() {
         logger.debug("Disposing SpeedViolationDetectionProcess");
+
+        // Clean up buffers
+        if (velocityBuffer != null) {
+            velocityBuffer.clear();
+        }
 
         // Clean up OpenCV native resources
         if (mat != null) {
@@ -577,6 +727,7 @@ public class SpeedViolationDetectionProcess extends ExecutableProcessImpl {
         if (vehicleVelocityHistory != null) {
             vehicleVelocityHistory.clear();
         }
+
 
         super.dispose();
         logger.debug("Disposed");

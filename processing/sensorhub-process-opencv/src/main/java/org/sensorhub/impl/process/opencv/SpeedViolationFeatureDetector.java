@@ -22,7 +22,7 @@ import static org.bytedeco.opencv.global.opencv_imgproc.*;
  * Detects vehicles in frames, tracks them with unique FOI IDs, and maintains
  * detection start/end times for each vehicle.
  *
- * @author Nick Garay
+ * @author Cardy
  * @since 1.0.0
  */
 class SpeedViolationFeatureDetector {
