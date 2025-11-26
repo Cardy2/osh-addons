@@ -113,20 +113,26 @@ class SpeedViolationFeatureDetector {
                 cvtColor(mat, gray, COLOR_BGR2GRAY);
                 equalizeHist(gray, gray);
 
-                // Apply each classifier
+                // Downscale for faster detection (0.5 = half size = 4x fewer pixels)
+                double scale = 0.5; // Use 0.5-0.6 for Pi 5
+                Mat smallGray = new Mat();
+                resize(gray, smallGray, new Size(), scale, scale, INTER_AREA);
+
+                // Apply each classifier on downscaled image
                 for (CascadeClassifier classifier : classifiers) {
                     features.clear();
 
                     classifier.detectMultiScale(
-                            gray, features,
-                            1.05, 3, 0,
-                            new Size(mat.cols() / 6, mat.rows() / 6),
-                            new Size(mat.cols(), mat.rows())
+                        smallGray, features,
+                        1.15,  // scaleFactor - higher = fewer scales = faster (was 1.05)
+                        4,     // minNeighbors - higher = fewer false positives = faster (was 3)
+                        0,
+                        new Size((int)(smallGray.cols() / 10.0), (int)(smallGray.rows() / 10.0)),
+                        new Size()
                     );
 
                     long numberOfVehicles = features.size();
                     boolean detected = numberOfVehicles > 0;
-
                     vehicleDetected.getData().setBooleanValue(detected);
 
                     // Tracks which VehicleTracking IDs were matched in the current frame
@@ -147,15 +153,21 @@ class SpeedViolationFeatureDetector {
                         int idx = 0;
 
                         for (int i = 0; i < features.size(); i++) {
-                            Rect feature = features.get(i);
+                            Rect smallFeature = features.get(i);
+                            Rect feature = new Rect(
+                                (int)(smallFeature.x() / scale),
+                                (int)(smallFeature.y() / scale),
+                                (int)(smallFeature.width() / scale),
+                                (int)(smallFeature.height() / scale)
+                            );
 
-                            // Store bounding box coordinates
+                            // Store bounding box coordinates (from scaled-up rect)
                             bboxData.setIntValue(idx++, feature.x());
                             bboxData.setIntValue(idx++, feature.y());
                             bboxData.setIntValue(idx++, feature.width());
                             bboxData.setIntValue(idx++, feature.height());
 
-                            // Draw bounding box on image (cyan color)
+                            // Draw on original full-size mat
                             rectangle(mat, feature, new Scalar(0, 255, 255, 1.0));
 
                             // Match to existing tracker or create new one
@@ -181,11 +193,17 @@ class SpeedViolationFeatureDetector {
                                 }
                             }
                         }
+                    } else {
+                        // No detections - reset outputs to empty state
+                        numVehicles.getData().setIntValue(0);
+                        bboxList.updateSize(); // This will set size to 0 based on numVehicles
+                        logDebug("No detections - reset numVehicles to 0 and cleared bboxList");
                     }
 
                     // Handle vehicles that ended (no longer detected)
                     if (!detected && started) {
                         // No detections - end all active trackers
+                        List<Integer> vehiclesToRemove = new ArrayList<>();
                         for (VehicleTracking vt : activeVehicles.values()) {
                             if (vt.isActive()) {
                                 double end = inputTimestamp.getData().getDoubleValue();
@@ -195,13 +213,19 @@ class SpeedViolationFeatureDetector {
                                 foiId.getData().setIntValue(vt.getId());
                                 logDebug("Ended vehicle tracker: FOI ID= " + vt.getId() +
                                         ", duration= " + (vt.getDetectionEnd() - vt.getDetectionStart()) + "s");
+                                vehiclesToRemove.add(vt.getId()); // Collect IDs to remove
                             }
+                        }
+                        // Remove ended vehicles from map
+                        for (Integer vehicleId : vehiclesToRemove) {
+                            activeVehicles.remove(vehicleId);
                         }
                         logger.info("TRANSITION: started=false (all vehicles disappeared)");
                         started = false;
 
                     } else if (detected && started) {
                         // Detections exist but some trackers weren't matched - they disappeared
+                        List<Integer> vehiclesToRemove = new ArrayList<>();
                         for (VehicleTracking vt : activeVehicles.values()) {
                             if (vt.isActive() && !matchedThisFrame.contains(vt.getId())) {
                                 double end = inputTimestamp.getData().getDoubleValue();
@@ -211,7 +235,12 @@ class SpeedViolationFeatureDetector {
                                 foiId.getData().setIntValue(vt.getId());
                                 logDebug("Ended unmatched vehicle tracker: FOI ID= " + vt.getId()
                                         + ", duration= " + (vt.getDetectionEnd() - vt.getDetectionStart()) + "s ");
+                                vehiclesToRemove.add(vt.getId()); // Collect IDs to remove
                             }
+                        }
+                        // Remove unmatched vehicles from map
+                        for (Integer vehicleId : vehiclesToRemove) {
+                            activeVehicles.remove(vehicleId);
                         }
 
                         logDebug("Features detected: " + features.size() + ", active vehicles: " + activeVehicles.size());
@@ -224,7 +253,7 @@ class SpeedViolationFeatureDetector {
 
             } catch (Exception e) {
                 logError("Exception while detecting features", e);
-                throw new RuntimeException("Error during feature detection", e);
+//                throw new RuntimeException("Error during feature detection", e);
             }
 
         }

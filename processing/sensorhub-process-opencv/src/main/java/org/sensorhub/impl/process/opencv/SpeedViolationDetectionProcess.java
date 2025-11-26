@@ -253,14 +253,14 @@ public class SpeedViolationDetectionProcess extends ExecutableProcessImpl {
 public void execute() throws ProcessException {
     logDebug("Processing event - checking input availability");
 
-    if (!violationImage.hasData()) {
-        violationImage.assignNewDataBlock();
-    }
+//    if (!violationImage.hasData()) {
+//        violationImage.assignNewDataBlock();
+//    }
 
     // Always set size to 0 initially (will be set > 0 if violation occurs)
-    violationImage.getArraySizeComponent().getData().setIntValue(0);
+//    violationImage.getArraySizeComponent().getData().setIntValue(0);
 
-    try {
+//    try {
         // Process video frame and detect vehicles
         processVideoFrame();
 
@@ -270,10 +270,27 @@ public void execute() throws ProcessException {
         // Check for completed vehicle detections and evaluate violations
         evaluateViolations();
 
-    } catch (Exception e) {
-        logger.error("Error during execution", e);
-        throw new ProcessException("Error during speed violation detection", e);
-    }
+//    } catch (Exception e) {
+//        logger.error("Error during execution", e);
+//        throw new ProcessException("Error during speed violation detection", e);
+//    }
+//    } finally {
+//        // CRITICAL: Reset violation output after processing for next cycle
+//        // This prevents errors when renewOutputData tries to clone it
+//        if (violationImage.hasData()) {
+//            var sizeComp = violationImage.getArraySizeComponent();
+//            if (sizeComp != null && sizeComp.hasData()) {
+//                int arraySize = sizeComp.getData().getIntValue();
+//                // If we published a violation, reset for next cycle
+//                // The publish already happened, so we can safely reset here
+//                if (arraySize > 0) {
+//                    // Reset to empty state for next execution
+//                    violationImage.assignNewDataBlock();
+//                    violationImage.getArraySizeComponent().getData().setIntValue(0);
+//                }
+//            }
+//        }
+//    }
 }
 
     private void processVideoFrame() throws ProcessException {
@@ -297,8 +314,9 @@ public void execute() throws ProcessException {
         byte[] imageFrame = ((DataBlockByte) imgData).getUnderlyingObject();
 
         if (imageFrame.length != imgWidth * imgHeight * 3) {
-            logger.warn("Image frame size {} doesn't match expected size {} for dimensions {}x{}",
-                    imageFrame.length, imgWidth * imgHeight * 3, imgWidth, imgHeight);
+            logDebug("Image frame size " + imageFrame.length + " doesn't match expected size " +
+                             (imgWidth * imgHeight * 3) + " for dimensions " +
+                    "{" + imgWidth + " }x{" + imgHeight + "}");
         }
 
         BytePointer ptr = null;
@@ -430,9 +448,12 @@ public void execute() throws ProcessException {
             }
         }
 
-        // Remove ended vehicles from velocity history
+        // Remove ended vehicles from velocity history AND activeVehicles map
         for (Integer foiId : vehiclesToRemove) {
             vehicleVelocityHistory.remove(foiId);
+            activeVehicles.remove(foiId);  // <-- ADD THIS LINE to remove from activeVehicles
+            logDebug("Removed ended vehicle FOI ID " + foiId + " from activeVehicles map");
+            logDebug("Removed ended vehicle FOI ID " + foiId + " from vehicleVelocityHistory");
         }
     }
 
@@ -496,11 +517,6 @@ public void execute() throws ProcessException {
             // IMPORTANT: Set array size BEFORE setting underlying object
             violationImage.getArraySizeComponent().getData().setIntValue(jpegImage.length);
 
-            // Ensure data block exists
-            if (!violationImage.hasData()) {
-                violationImage.assignNewDataBlock();
-            }
-
             // Now set the image data
             violationImage.getData().setUnderlyingObject(jpegImage);
 
@@ -512,8 +528,13 @@ public void execute() throws ProcessException {
             logDebug("Speed violation image captured: FOI ID= " + foiId + ", size= " +
                     width + "x" + height + ", jpegSize= " + jpegImage.length + " bytes");
 
-        } catch (Exception e) {
-            logger.error("Error capturing speed violation image for vehicle {}", foiId, e);
+            // Ensure data block exists
+//            if (!violationImage.hasData()) {
+//                violationImage.assignNewDataBlock();
+//            }
+
+//        } catch (Exception e) {
+//            logger.debug("Error capturing speed violation image for vehicle {}", foiId, e);
         } finally {
             if (vehicleCrop != null) {
                 vehicleCrop.close();
@@ -620,67 +641,105 @@ public void execute() throws ProcessException {
         logDebug("Disposed");
     }
 
-    @Override
-    protected void renewOutputData(String outputName) {
-        if ("speedViolationCapture".equals(outputName)) {
-            // Handle violation output specially - it may be empty
-            DataComponent comp = outputData.getComponent(outputName);
-            if (comp != null && comp.hasData()) {
-                DataBlock currentData = comp.getData();
+//    @Override
+//    protected void renewOutputData(String outputName) {
+//        if ("speedViolationCapture".equals(outputName)) {
+//            // For violation output, always assign new empty datablock
+//            // (violation data is published once and then reset)
+//            violationImage.assignNewDataBlock();
+////            violationImage.getArraySizeComponent().getData().setIntValue(0);
+//        } else {
+//            super.renewOutputData(outputName);
+//        }
+//    }
 
-                // Check if we have a valid violation image (size > 0)
-                if (violationImage.hasData()) {
-                    var sizeComp = violationImage.getArraySizeComponent();
-                    if (sizeComp != null && sizeComp.hasData()) {
-                        int arraySize = sizeComp.getData().getIntValue();
-
-                        if (arraySize > 0) {
-                            // We have valid data - clone it normally
-                            try {
-                                comp.setData(currentData.clone());
-                                return;
-                            } catch (Exception e) {
-                                logError("Error cloning violation output data, assigning new block", e);
-                            }
-                        }
-                    }
-                }
-            }
-
-            // Empty output or error - assign fresh empty datablock
-            violationImage.assignNewDataBlock();
-            violationImage.getArraySizeComponent().getData().setIntValue(0);
-
-        } else {
-            // For other outputs, use default behavior
-            super.renewOutputData(outputName);
-        }
-    }
-
-    // Also override publishData to skip empty violation outputs
     @Override
     protected void publishData() throws InterruptedException {
-        // Check violation output first - only publish if it has data
-        if (outputConnections.containsKey("speedViolationCapture")) {
-            if (violationImage.hasData()) {
-                var sizeComp = violationImage.getArraySizeComponent();
-                if (sizeComp != null && sizeComp.hasData()) {
-                    int arraySize = sizeComp.getData().getIntValue();
-                    if (arraySize > 0) {
-                        // Only publish if we have valid violation data
-                        publishData("speedViolationCapture");
-                    }
-                }
-            }
-        }
-
         // Publish other outputs normally
         for (String outputName : outputConnections.keySet()) {
             if (!"speedViolationCapture".equals(outputName)) {
                 publishData(outputName);
             }
         }
+
+        // Only publish violation output if it has valid data
+        if (outputConnections.containsKey("speedViolationCapture")) {
+            if (violationImage.hasData()) {
+                var sizeComp = violationImage.getArraySizeComponent();
+                if (sizeComp != null && sizeComp.hasData()) {
+                    int arraySize = sizeComp.getData().getIntValue();
+                    if (arraySize > 0) {
+                        publishData("speedViolationCapture");
+                        // Reset after publishing
+                        violationImage.assignNewDataBlock();
+                        // New datablock starts with size 0 automatically
+                    }
+                }
+            }
+        }
     }
+
+//    @Override
+//    protected void renewOutputData(String outputName) {
+//        if ("speedViolationCapture".equals(outputName)) {
+//            // Handle violation output specially - it may be empty
+//            DataComponent comp = outputData.getComponent(outputName);
+//            if (comp != null && comp.hasData()) {
+//                DataBlock currentData = comp.getData();
+//
+//                // Check if we have a valid violation image (size > 0)
+//                if (violationImage.hasData()) {
+//                    var sizeComp = violationImage.getArraySizeComponent();
+//                    if (sizeComp != null && sizeComp.hasData()) {
+//                        int arraySize = sizeComp.getData().getIntValue();
+//
+//                        if (arraySize > 0) {
+//                            // We have valid data - clone it normally
+//                            try {
+//                                comp.setData(currentData.clone());
+//                                return;
+//                            } catch (Exception e) {
+//                                logError("Error cloning violation output data, assigning new block", e);
+//                            }
+//                        }
+//                    }
+//                }
+//            }
+//
+//            // Empty output or error - assign fresh empty datablock
+//            violationImage.assignNewDataBlock();
+//            violationImage.getArraySizeComponent().getData().setIntValue(0);
+//
+//        } else {
+//            // For other outputs, use default behavior
+//            super.renewOutputData(outputName);
+//        }
+//    }
+
+    // Also override publishData to skip empty violation outputs
+//    @Override
+//    protected void publishData() throws InterruptedException {
+//        // Check violation output first - only publish if it has data
+//        if (outputConnections.containsKey("speedViolationCapture")) {
+//            if (violationImage.hasData()) {
+//                var sizeComp = violationImage.getArraySizeComponent();
+//                if (sizeComp != null && sizeComp.hasData()) {
+//                    int arraySize = sizeComp.getData().getIntValue();
+//                    if (arraySize > 0) {
+//                        // Only publish if we have valid violation data
+//                        publishData("speedViolationCapture");
+//                    }
+//                }
+//            }
+//        }
+//
+//        // Publish other outputs normally
+//        for (String outputName : outputConnections.keySet()) {
+//            if (!"speedViolationCapture".equals(outputName)) {
+//                publishData(outputName);
+//            }
+//        }
+//    }
     private void logDebug(String message) {
         // Use System.out since loggers aren't working
         System.out.println("[DEBUG] " + message);

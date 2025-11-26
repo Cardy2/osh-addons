@@ -53,11 +53,20 @@ public class V4LCameraConfig extends SensorConfig
     @DisplayInfo(desc="Enable virtual camera using libcamera")
     public boolean virtualCamEnabled = true;
 
-    @DisplayInfo(desc="Name of virtual cam device to use (e.g. /dev/video10)")
-    public String virtualCam = "/dev/video10";
+    @DisplayInfo(desc="Name of virtual cam device to use (e.g. /dev/video12)")
+    public String virtualCam = "/dev/video"+ this.videoNr;
 
     @DisplayInfo(desc="Video codec to use (e.g. rawvideo, yuyv422, mjpeg )")
-    public String vcodec = "mjpeg";
+    public String vcodec = "rawvideo";
+
+    @DisplayInfo(desc="Pixel format to use (e.g. yuv420p, bgr24, rgb24 )")
+    public String pix_format = "yuv420p";
+
+    @DisplayInfo(desc="Pixel format to convert to (e.g. bgr24, rgb24 )")
+    public String pix_format_convert = "bgr24";
+
+    @DisplayInfo(desc="Virtual camera number to use (e.g. 10, 11, 12 )")
+    public int videoNr = 12;
 
     @Override
     public LLALocation getLocation()
