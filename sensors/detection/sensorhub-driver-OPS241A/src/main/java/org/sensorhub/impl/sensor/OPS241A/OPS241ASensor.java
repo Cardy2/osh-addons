@@ -178,7 +178,7 @@ public class OPS241ASensor extends AbstractSensorModule<OPS241AConfig> implement
 
     public void handleSensorReading (String sensorReading) {
         try {
-//            System.out.println(Double.parseDouble(sensorReading));
+            System.out.println(Double.parseDouble(sensorReading));
             ops241aOutput.SetData(Double.parseDouble(sensorReading));
         } catch (NumberFormatException e) {
             System.out.println("Unknown reading: " + sensorReading);
@@ -189,6 +189,8 @@ public class OPS241ASensor extends AbstractSensorModule<OPS241AConfig> implement
     public void sendSensorCommand(String cmd) throws IOException {
         dataOut.write((cmd+ "\r\n").getBytes());
         dataOut.flush();
+        sendSensorCommand("U?");   // Set Sensor Units
+
     }
     // CREATE A RXTX CONNECTION
     public void establishRxTxConnection(String portAddress, int baudRate) throws IOException, PortInUseException, UnsupportedCommOperationException {

@@ -53,6 +53,8 @@ public class V4LCameraDriver extends AbstractSensorModule<V4LCameraConfig>
         {
             // preload libvideo so it is extracted from JAR
             System.loadLibrary("video");
+            System.loadLibrary("v4l4j");   // extracts + loads libv4l4j.so
+
         }
         catch (Exception e)
         {
