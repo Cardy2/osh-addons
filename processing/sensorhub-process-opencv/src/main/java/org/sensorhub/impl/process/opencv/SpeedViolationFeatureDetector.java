@@ -103,8 +103,7 @@ class SpeedViolationFeatureDetector {
      * Draws bounding boxes on the Mat and updates vehicle tracking information.
      */
     void detectFeatures() {
-        logger.debug("Detecting features - started={}, activeVehicles={}",
-                started, activeVehicles.size());
+        logDebug("Detecting features - started= " + started + ", activeVehicles= " + activeVehicles.size());
 
         try (RectVector features = new RectVector()) {
 
@@ -138,8 +137,8 @@ class SpeedViolationFeatureDetector {
                             started = true;
                             logger.info("TRANSITION: started=true (first vehicle detected)");
                         }
-                        logger.debug("Detection result: detected={}, numberOfVehicles={}, started={}",
-                                detected, numberOfVehicles, started);
+                        logDebug("Detection result: detected= " + detected + ", numberOfVehicles= " +
+                                numberOfVehicles + "}, started= " + started);
 
                         numVehicles.getData().setIntValue((int) numberOfVehicles);
                         bboxList.updateSize();
@@ -169,7 +168,7 @@ class SpeedViolationFeatureDetector {
                                 vt.update(now, feature);
                                 activeVehicles.put(vt.getId(), vt);
                                 matchedThisFrame.add(vt.getId());
-                                logger.debug("Created new vehicle tracker: FOI ID={}", vt.getId());
+                                logDebug("Created new vehicle tracker: FOI ID= " + vt.getId());
 
                             } else {
                                 // Update existing vehicle tracker
@@ -178,7 +177,7 @@ class SpeedViolationFeatureDetector {
                                 if (vt.isActive()) {
                                     vt.update(now, feature);
                                     matchedThisFrame.add(vehicleId);
-                                    logger.debug("Updated vehicle tracker: FOI ID={}", vehicleId);
+                                    logDebug("Updated vehicle tracker: FOI ID= " + vehicleId);
                                 }
                             }
                         }
@@ -194,8 +193,8 @@ class SpeedViolationFeatureDetector {
                                 startTime.getData().setDoubleValue(vt.getDetectionStart());
                                 endTime.getData().setDoubleValue(vt.getDetectionEnd());
                                 foiId.getData().setIntValue(vt.getId());
-                                logger.debug("Ended vehicle tracker: FOI ID={}, duration={}s",
-                                        vt.getId(), vt.getDetectionEnd() - vt.getDetectionStart());
+                                logDebug("Ended vehicle tracker: FOI ID= " + vt.getId() +
+                                        ", duration= " + (vt.getDetectionEnd() - vt.getDetectionStart()) + "s");
                             }
                         }
                         logger.info("TRANSITION: started=false (all vehicles disappeared)");
@@ -210,25 +209,25 @@ class SpeedViolationFeatureDetector {
                                 startTime.getData().setDoubleValue(vt.getDetectionStart());
                                 endTime.getData().setDoubleValue(vt.getDetectionEnd());
                                 foiId.getData().setIntValue(vt.getId());
-                                logger.debug("Ended unmatched vehicle tracker: FOI ID={}, duration={}s",
-                                        vt.getId(), vt.getDetectionEnd() - vt.getDetectionStart());
+                                logDebug("Ended unmatched vehicle tracker: FOI ID= " + vt.getId()
+                                        + ", duration= " + (vt.getDetectionEnd() - vt.getDetectionStart()) + "s ");
                             }
                         }
-                    }
 
-                    logger.debug("Features detected: {}, active vehicles: {}",
-                            features.size(), activeVehicles.size());
+                        logDebug("Features detected: " + features.size() + ", active vehicles: " + activeVehicles.size());
+                    }
                 }
 
-            } finally {
-                gray.close();
+                } finally{
+                    gray.close();
+                }
+
+            } catch (Exception e) {
+                logError("Exception while detecting features", e);
+                throw new RuntimeException("Error during feature detection", e);
             }
 
-        } catch (Exception e) {
-            logger.error("Exception while detecting features", e);
-            throw new RuntimeException("Error during feature detection", e);
         }
-    }
 
     /**
      * Matches a detected feature to an existing vehicle tracker based on IoU and distance.
@@ -313,4 +312,17 @@ class SpeedViolationFeatureDetector {
     public boolean getStarted() {
         return started;
     }
+
+    private void logDebug(String message) {
+        // Use System.out since loggers aren't working
+        System.out.println("[DEBUG] " + message);
+    }
+
+    private void logError(String message, Throwable e) {
+        System.err.println("[ERROR] " + message);
+        if (e != null) {
+            e.printStackTrace();
+        }
+    }
+
 }
