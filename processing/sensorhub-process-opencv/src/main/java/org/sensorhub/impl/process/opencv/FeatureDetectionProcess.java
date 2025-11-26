@@ -33,7 +33,7 @@ import static org.opencv.core.CvType.CV_8UC3;
 /**
  * Process for performing feature detection on images from a video source
  *
- * @author Nick Garay
+ * @author Cardy
  * @since 1.0.0
  */
 public class FeatureDetectionProcess extends ExecutableProcessImpl {
@@ -65,8 +65,6 @@ public class FeatureDetectionProcess extends ExecutableProcessImpl {
     private final Time captureTimestamp;
 
     private boolean started;
-
-
 
     // _________________________________________
     private final Boolean overThresholdInput;

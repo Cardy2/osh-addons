@@ -15,6 +15,8 @@ import org.bytedeco.opencv.opencv_core.Point;
 import org.bytedeco.opencv.opencv_objdetect.CascadeClassifier;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
+import org.bytedeco.javacpp.IntPointer;
+import org.bytedeco.javacpp.BytePointer;
 
 import javax.imageio.ImageIO;
 import java.awt.image.*;
@@ -48,14 +50,13 @@ class FeatureDetector1 {
     private final Count numVehicles;
     private final String label;
     private final Boolean vehicleDetected;
-//    private final Time captureTime;
     private final Time inputTimestamp;
-//    private final double timestamp;
 
     // _____________________________________
     private final Time startTime;
     private final Time endTime;
     private boolean started;
+//    private final Boolean started;
 //    private double detectionStart = -1;
 //    private double detectionEnd = -1;
     private final Count foiId;
@@ -93,11 +94,14 @@ class FeatureDetector1 {
                      Count width,
                      Count foiId,
                      int nextId,
-                     Map<Integer, VehicleTracking> activeVehicles) {
+                     Map<Integer, VehicleTracking> activeVehicles,
+                     boolean started)
 
-        logger.debug("Creating");
+    {
 
-        System.setProperty("org.bytedeco.javacpp.logger.debug", "true");
+//        System.out.println("Creating");
+
+//        System.setProperty("org.bytedeco.javacpp.logger.debug", "true");
         System.setProperty("org.bytedeco.javacpp.maxphysicalbytes", "0");
         System.setProperty("org.bytedeco.javacpp.maxbytes", "0");
 
@@ -105,7 +109,7 @@ class FeatureDetector1 {
 
         this.width = width;
         this.height = height;
-        this.mat = mat.clone();
+        this.mat = mat;
         this.bboxList = bboxList;
         this.numVehicles = numVehicles;
         this.imgWidth = imgWidth;
@@ -119,8 +123,9 @@ class FeatureDetector1 {
         this.foiId = foiId;
         this.nextId = nextId;
         this.activeVehicles = activeVehicles;
+//        this.started = started;
 
-        logger.debug("Created");
+//        System.out.println("Created");
     }
 
     /**
@@ -130,9 +135,9 @@ class FeatureDetector1 {
      */
     byte[] detectFeatures() {
 
-        logger.debug("Detecting features");
+        System.out.println("Detecting features");
 
-        started = vehicleDetected.getValue();
+//        started = vehicleDetected.getValue();
 
         byte[] outputImageData = null;
 
@@ -140,21 +145,40 @@ class FeatureDetector1 {
 
             try (RectVector features = new RectVector()) {
 
-                logger.debug("Applying classifiers");
+                Mat gray = new Mat();
+                cvtColor(mat, gray, COLOR_BGR2GRAY);
+                equalizeHist(gray, gray);
+
+                // Optional fast path: detect on downscaled image
+                double scale = 0.5; // tune 0.5–0.75
+                Mat small = new Mat();
+                resize(gray, small, new Size(), scale, scale, INTER_AREA);
+
+//                System.out.println("Applying classifiers");
+
 
                 for (CascadeClassifier classifier : classifiers) {
 
-//                    classifier.detectMultiScale(mat, features);
-//                    Mat resized = new Mat();
-//                    opencv_imgproc.resize(mat, resized, new Size(mat.cols() * 2, mat.rows() * 2)); // upscale 2x
-                    classifier.detectMultiScale(
-                            mat, features,
-                            1.05, 3, 0,
-                            new Size(mat.cols() / 6, mat.rows() / 6),
-                            new Size(mat.cols(), mat.rows())
-                    );
+                features.clear();
 
-                    logger.debug("Detecting features");
+//                classifier.detectMultiScale(
+//                    small, features,
+//                    1.2, 5, 0,
+//                    new Size((int)(small.cols() / 10.0), (int)(small.rows() / 10.0)),
+//                    new Size()
+//                );
+
+//                    classifier.detectMultiScale(mat, features);
+
+                    Mat resized = new Mat();
+                    opencv_imgproc.resize(mat, resized, new Size(mat.cols() * 2, mat.rows() * 2)); // upscale 2x
+                     classifier.detectMultiScale(
+                             mat, features,
+                             1.05, 3, 0,
+                             new Size(mat.cols() / 6, mat.rows() / 6),
+                             new Size(mat.cols(), mat.rows())
+                     );
+
 
                     long numberOfVehicles = features.size();
                     boolean detected = numberOfVehicles > 0;
@@ -167,6 +191,7 @@ class FeatureDetector1 {
                     if (detected) {
                         if (!started) {
                             started = true;
+                            System.out.println("Started = true!");
                         }
 
                     numVehicles.getData().setIntValue((int) numberOfVehicles);
@@ -174,38 +199,45 @@ class FeatureDetector1 {
                     var bboxData = bboxList.getData();
 
                     int idx = 0;
-//                    Mat safeMat = mat.clone();
+
                     for (int i = 0; i < features.size(); i++) {
 
-                        Rect feature = features.get(i);
-                        Rect match = new Rect(feature.x(), feature.y(), feature.width(), feature.height());
+                    // When iterating features, scale back:
+                    Rect fSmall = features.get(i);
+                    Rect feature = new Rect(
+                        (int)(fSmall.x() / scale),
+                        (int)(fSmall.y() / scale),
+                        (int)(fSmall.width() / scale),
+                        (int)(fSmall.height() / scale)
+                    );
+                        // Rect feature = features.get(i);
+                        // Rect match = new Rect(feature.x(), feature.y(), feature.width(), feature.height());
 
                         bboxData.setIntValue(idx++, feature.x());
                         bboxData.setIntValue(idx++, feature.y());
                         bboxData.setIntValue(idx++, feature.width());
                         bboxData.setIntValue(idx++, feature.height());
 
-                        System.out.println(
-                                "featureBbox=" + String.format("x=%d,y=%d,w=%d,h=%d",
-                                                feature.x()/2,
-                                                feature.y()/2,
-                                                feature.width()/2,
-                                                feature.height()/2)
-                        );
+                        // System.out.println(
+                        //         "featureBbox=" + String.format("x=%d,y=%d,w=%d,h=%d",
+                        //                         feature.x()/2,
+                        //                         feature.y()/2,
+                        //                         feature.width()/2,
+                        //                         feature.height()/2)
+                        // );
 
 //                        rectangle(mat, match, new Scalar(0, 255, 255, 1.0));
+
                         // Color given as BGR instead of RGB
                         rectangle(mat, feature, new Scalar(0, 255, 255.0, 1.0));
 
-//                        safeMat.release();
-
-                        int vehicleId = matchToExistingTracker(match, imgWidth, imgHeight);
+                        int vehicleId = matchToExistingTracker(feature, imgWidth, imgHeight);
 
                         if (vehicleId == -1) {
                             // New vehicle
                             double now = inputTimestamp.getData().getDoubleValue();
                             VehicleTracking vt = new VehicleTracking(nextId++, now);
-                            vt.update(now, match);
+                            vt.update(now, feature);
                             activeVehicles.put(vt.getId(), vt);
 
 //                            startTime.getData().setDoubleValue(vt.getDetectionStart());
@@ -219,7 +251,7 @@ class FeatureDetector1 {
                             double now = inputTimestamp.getData().getDoubleValue();
                             VehicleTracking vt = activeVehicles.get(vehicleId);
                             if (vt.isActive()) {
-                                vt.update(now, match);
+                                vt.update(now, feature);
                                 matchedThisFrame.add(vehicleId);
                             }
                         }
@@ -246,16 +278,17 @@ class FeatureDetector1 {
                             }
                         }
                     }
-                    setActiveVechicles(this.activeVehicles);
-                    logger.debug("{} features detected", features.size());
+                    setActiveVehicles(this.activeVehicles);
+
+                    System.out.println(" features detected" + features.size());
                 }
 
-                features.deallocate();
+                // features.deallocate();
             }
 //            Mat frameMat = mat.clone();
             if (null != label) {
 
-                logger.debug("Labeling image");
+//                System.out.println("Labeling image");
 
                 Size dimensions = getTextSize(label, FONT_HERSHEY_PLAIN, 2.0, 2, new int[]{1});
 
@@ -265,38 +298,53 @@ class FeatureDetector1 {
                         1.0,
                         new Scalar(0.0, 255.0, 255.0, 2.0));
 
-                logger.debug("Image labeled: {},{}", label, foiId);
+                System.out.println("Image labeled: " + label + " & " + foiId);
 
 //                frameMat.release();
             }
 
 //            Mat imgMat = mat.clone();
             // Convert to BufferedImage AFTER drawing
-            BufferedImage image = matToBufferedImage(mat);
+//             BufferedImage image = matToBufferedImage(mat);
 
-//          Encode as JPEG
-            try (ByteArrayOutputStream baos = new ByteArrayOutputStream()) {
-                ImageIO.write(image, "jpeg", baos);
-                width.getData().setIntValue(mat.cols());
-                height.getData().setIntValue(mat.rows());
-                baos.flush();
-                outputImageData = baos.toByteArray();
-            }
+// //          Encode as JPEG
+//             try (ByteArrayOutputStream baos = new ByteArrayOutputStream()) {
+//                 ImageIO.write(image, "jpeg", baos);
+//                 width.getData().setIntValue(mat.cols());
+//                 height.getData().setIntValue(mat.rows());
+//                 baos.flush();
+//                 outputImageData = baos.toByteArray();
+//             }
 
-//            imgMat.release();
-            mat.release();
+            // Replace BufferedImage + ImageIO with OpenCV imencode
+            BytePointer buf = new BytePointer();
+            IntPointer params = new IntPointer(2);
+            params.put(0, org.bytedeco.opencv.global.opencv_imgcodecs.IMWRITE_JPEG_QUALITY);
+            params.put(1, 60); // tune quality for speed/size
+
+            org.bytedeco.opencv.global.opencv_imgcodecs.imencode(".jpg", mat, buf, params);
+            outputImageData = new byte[(int) buf.limit()];
+            buf.get(outputImageData);
+
+            // set width/height counts if needed (already known from mat)
+
+            //            imgMat.release();
 
             return outputImageData;
 
 
-        } catch (IOException e) {
 
-            logger.error("Exception while processing event, {}", e.toString());
+
+        } catch (Exception e) {
+
+            logger.warn("Exception while processing event, {}", e.toString());
         }
 
-        logger.debug("Done detecting features");
+        System.out.println("Done detecting features");
 
         return outputImageData;
+
+
 
     }
 
@@ -339,15 +387,15 @@ class FeatureDetector1 {
     private double computeIoU(Rect a, Rect b) {
         int x1 = Math.max(a.x(), b.x());
         int y1 = Math.max(a.y(), b.y());
-        System.out.println();
-        System.out.println(String.valueOf((a.x())));
-        System.out.println(String.valueOf((a.y())));
-        System.out.println(String.valueOf((a.height())));
-        System.out.println(String.valueOf((a.width())));
-        System.out.println(String.valueOf((b.x())));
-        System.out.println(String.valueOf((b.y())));
-        System.out.println(String.valueOf((b.width())));
-        System.out.println(String.valueOf((b.height())));
+//        System.out.println();
+//        System.out.println(String.valueOf((a.x())));
+//        System.out.println(String.valueOf((a.y())));
+//        System.out.println(String.valueOf((a.height())));
+//        System.out.println(String.valueOf((a.width())));
+//        System.out.println(String.valueOf((b.x())));
+//        System.out.println(String.valueOf((b.y())));
+//        System.out.println(String.valueOf((b.width())));
+//        System.out.println(String.valueOf((b.height())));
         int x2 = Math.min(a.x() + a.width(), b.x() + b.width());
         int y2 = Math.min(a.y() + a.height(), b.y() + b.height());
 
@@ -366,16 +414,27 @@ class FeatureDetector1 {
         return Math.hypot(ax - bx, ay - by);
     }
 
-    public int setNextId(int nextId){
-        return nextId;
+    // public int setNextId(int nextId){
+    //     return nextId;
+    // }
+
+    // public int getNextId(){
+    //     return nextId;
+    // }
+
+    // public Map<Integer, VehicleTracking> setActiveVechicles(Map<Integer, VehicleTracking> activeVehicles){
+    //     return activeVehicles;
+    // }
+    public void setNextId(int nextId){
+        this.nextId = nextId;
     }
 
     public int getNextId(){
         return nextId;
     }
 
-    public Map<Integer, VehicleTracking> setActiveVechicles(Map<Integer, VehicleTracking> activeVehicles){
-        return activeVehicles;
+    public void setActiveVehicles(Map<Integer, VehicleTracking> activeVehicles){
+        this.activeVehicles = activeVehicles;
     }
 
     public Map<Integer, VehicleTracking> getActiveVehicles(){

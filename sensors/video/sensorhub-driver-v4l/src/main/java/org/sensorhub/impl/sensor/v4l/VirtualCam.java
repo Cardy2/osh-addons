@@ -14,15 +14,14 @@ public class VirtualCam {
     String vcodec;
     String pix_format;
     String pix_format_convert;
-    int videoNr;
     V4LCameraParams camParams;
 
     // sudo modprobe v4l2loopback devices=1 video_nr=12 card_label="VirtualCam" exclusive_caps=1
-    
+
     // rpicam-vid -t 0 --width 1280 --height 960 --framerate 30 --codec yuv420 --output - | ffmpeg -f rawvideo -pix_fmt yuv420p -s 1280x960 -r 30 -i -     -vf format=rgb24,setsar=1:1     -f v4l2 -pix_fmt rgb24 /dev/video12
 
 
-    public VirtualCam(String device, String virtualCam, String vcodec, String pix_format, String pix_format_convert, V4LCameraParams camParams, int videoNr) {
+    public VirtualCam(String device, String virtualCam, String vcodec, String pix_format, String pix_format_convert, V4LCameraParams camParams) {
 
         this.device = device;
         this.virtualCam = virtualCam;
@@ -34,6 +33,10 @@ public class VirtualCam {
     }
 
     public void start() throws IOException, InterruptedException {
+
+        // Extract video number from virtualCam string (e.g., "/dev/video12" -> "12")
+        String videoNr = virtualCam.replaceAll("\\D", ""); // Remove all non-digits
+
 
         ProcessBuilder modprobePb = new ProcessBuilder(
             "sudo", "modprobe", "v4l2loopback",
@@ -76,11 +79,11 @@ public class VirtualCam {
 
         rpicamPb.redirectError(ProcessBuilder.Redirect.INHERIT);
         ffmpegPb.redirectError(ProcessBuilder.Redirect.INHERIT);
-        
+
         // Start processes
         libCamera = rpicamPb.start();
         ffmpeg = ffmpegPb.start();
-        
+
         // Step 4: Wait 2 more seconds
         Thread.sleep(2000);
 

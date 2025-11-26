@@ -20,6 +20,7 @@ import org.sensorhub.impl.sensor.AbstractSensorModule;
 import au.edu.jcu.v4l4j.DeviceInfo;
 import au.edu.jcu.v4l4j.ImageFormat;
 import au.edu.jcu.v4l4j.VideoDevice;
+//import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.vast.sensorML.SMLUtils;
 import org.vast.xml.XMLWriterException;
@@ -63,12 +64,16 @@ public class V4LCameraDriver extends AbstractSensorModule<V4LCameraConfig>
     }
 
 //    static {
-
-//        NativeLibrary instance = NativeLibrary.getInstance("video", ClassLoader.getSystemClassLoader());
-//
-////        Native.register(org.openkinect.freenect.Freenect.class, instance);
-//        Native.register(au.edu.jcu.v4l4j.examples.videoViewer.DeviceChooser.class, instance);
-//    }
+//        try {
+//            NativeLibrary instance = NativeLibrary.getInstance("video", ClassLoader.getSystemClassLoader());
+////
+//////        Native.register(org.openkinect.freenect.Freenect.class, instance);
+//            Native.register(au.edu.jcu.v4l4j.examples.videoViewer.DeviceChooser.class, instance);
+//        } catch (Exception e)
+//        {
+//            LoggerFactory.getLogger(V4LCameraDriver.class).error("Unable to load native v4l library", e);
+//        }
+//        }
 
 
     public V4LCameraDriver()
@@ -92,10 +97,13 @@ public class V4LCameraDriver extends AbstractSensorModule<V4LCameraConfig>
     {
         super.doInit();
 
+        this.camParams = config.defaultParams.clone();
+
         if (config.virtualCamEnabled) {
             try {
-                virtualCam = new VirtualCam(config.deviceName, config.virtualCam, config.vcodec, config.pix_format, config.pix_format_convert, camParams, config.videoNr);
+                virtualCam = new VirtualCam(config.deviceName, config.virtualCam, config.vcodec, config.pix_format, config.pix_format_convert, this.camParams, config.videoNr);
                 virtualCam.start();
+
             } catch (IOException | InterruptedException e) {
                 throw new RuntimeException(e);
             }
@@ -104,7 +112,7 @@ public class V4LCameraDriver extends AbstractSensorModule<V4LCameraConfig>
         // generate IDs
         generateUniqueID("urn:osh:sensor:v4l-cam:", config.serialNumber);
         generateXmlID("V4L_CAMERA_", config.serialNumber);
-        this.camParams = config.defaultParams.clone();
+//        this.camParams = config.defaultParams.clone();
 
         // init video device
         DeviceInfo deviceInfo = initVideoDevice();
@@ -118,7 +126,7 @@ public class V4LCameraDriver extends AbstractSensorModule<V4LCameraConfig>
         {
             if ("MJPEG".equals(fmt.getName()))
             {
-                getLogger().debug("Creating MJPEG output");
+                logger.debug("Creating MJPEG output");
                 dataInterface = new V4LCameraOutputMJPEG(this, fmt);
             }
             else if ("H264".equals(fmt.getName()))
@@ -173,13 +181,13 @@ public class V4LCameraDriver extends AbstractSensorModule<V4LCameraConfig>
         if (dataInterface != null)
             dataInterface.start();
 
-        SMLUtils smlUtils = new SMLUtils(SMLUtils.V2_1);
-
-        try {
-            smlUtils.writeProcess(System.out, this.getCurrentDescription(), true);
-        } catch (XMLWriterException e) {
-            throw new RuntimeException(e);
-        }
+//        SMLUtils smlUtils = new SMLUtils(SMLUtils.V2_1);
+//
+//        try {
+//            smlUtils.writeProcess(System.out, this.getCurrentDescription(), true);
+//        } catch (XMLWriterException e) {
+//            throw new RuntimeException(e);
+//        }
     }
 
 //    public void writeAsXML(V4LCameraDriver this, V4LCameraConfig config) throws XMLWriterException, SensorHubException {

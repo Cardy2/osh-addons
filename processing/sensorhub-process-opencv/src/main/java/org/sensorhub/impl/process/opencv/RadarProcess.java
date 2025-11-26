@@ -209,6 +209,10 @@ public class RadarProcess extends ExecutableProcessImpl {
 //            byte[] imageFrame = ((DataBlockCompressed) imgData).getUnderlyingObject();
             if (!detected){
                 overThreshold.getData().setBooleanValue(false);
+                double velocity = inputVelocity.getValue();
+                velocity = Math.abs(velocity);
+                outputVelocity.getData().setDoubleValue(velocity);
+
             } else if (detectionStartTime < detectionEndTime) {
 
                 double velocity = inputVelocity.getValue();
@@ -221,34 +225,23 @@ public class RadarProcess extends ExecutableProcessImpl {
                     overThreshold.getData().setBooleanValue(true);
 
                     byte[] imageFrame = ((DataBlockCompressed) imgData).getUnderlyingObject();
-//                    byte[] imageFrame = ((DataBlockByte) imgData).getUnderlyingObject();
 
-                    try {
-                        BufferedImage image = ImageIO.read(new ByteArrayInputStream(imageFrame));
+                    int arraySize = imageFrame.length;
 
-                        try (ByteArrayOutputStream baos = new ByteArrayOutputStream()) {
-                            ImageIO.write(image, "jpg", baos);
-                            baos.flush();
-                            byte[] jpeg = baos.toByteArray();
-
-//                            int arraySize = jpeg.length;
-                            int arraySize = imageFrame.length;
-
-                            captureWidth.getData().setIntValue(image.getWidth());
-                            captureHeight.getData().setIntValue(image.getHeight());
-                            captureImageOut.getArraySizeComponent().getData().setIntValue(arraySize);
+//                            captureWidth.getData().setIntValue(image.getWidth());
+//                            captureHeight.getData().setIntValue(image.getHeight());
+                    captureWidth.getData().setIntValue(inputWidth.getValue());
+                    captureHeight.getData().setIntValue(inputHeight.getValue());
+                    captureImageOut.getArraySizeComponent().getData().setIntValue(arraySize);
 //                            captureImageOut.getData().setUnderlyingObject(jpeg);
-                            captureImageOut.getData().setUnderlyingObject(imageFrame);
-                            captureImageOut.getEncoding();
-                            captureTimestampOut.getData().setDoubleValue(captureTime);
-                        }
-
-
-                    } catch (IOException e) {
-                        throw new RuntimeException(e);
-                    }
+                    captureImageOut.getData().setUnderlyingObject(imageFrame);
+                    captureImageOut.getEncoding();
+                    captureTimestampOut.getData().setDoubleValue(captureTime);
                 }
             }
+//                    } catch (Exception e) {
+//                        throw new RuntimeException(e);
+//                    }
         }
     }
 

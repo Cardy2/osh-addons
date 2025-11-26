@@ -60,10 +60,10 @@ public class V4LCameraConfig extends SensorConfig
     public String vcodec = "rawvideo";
 
     @DisplayInfo(desc="Pixel format to use (e.g. yuv420p, bgr24, rgb24 )")
-    public String pix_format = "yuv420p";
+    public String pix_format = "rgb24";
 
     @DisplayInfo(desc="Pixel format to convert to (e.g. bgr24, rgb24 )")
-    public String pix_format_convert = "bgr24";
+    public String pix_format_convert = "rgb24";
 
     @DisplayInfo(desc="Virtual camera number to use (e.g. 10, 11, 12 )")
     public int videoNr = 12;

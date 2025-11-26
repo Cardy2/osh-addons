@@ -14,9 +14,13 @@ Copyright (C) 2012-2016 Sensia Software LLC. All Rights Reserved.
 
 package org.sensorhub.impl.sensor.v4l;
 
+import au.edu.jcu.v4l4j.exceptions.StateException;
 import net.opengis.swe.v20.DataComponent;
 import net.opengis.swe.v20.DataEncoding;
 import net.opengis.swe.v20.DataStream;
+
+import java.awt.image.DataBuffer;
+import java.util.Objects;
 import java.util.concurrent.atomic.AtomicBoolean;
 import org.sensorhub.api.sensor.SensorException;
 import org.sensorhub.impl.sensor.AbstractSensorOutput;
@@ -25,6 +29,8 @@ import au.edu.jcu.v4l4j.DeviceInfo;
 import au.edu.jcu.v4l4j.FrameGrabber;
 import au.edu.jcu.v4l4j.VideoFrame;
 import au.edu.jcu.v4l4j.exceptions.V4L4JException;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 
 
 /**
@@ -42,8 +48,7 @@ public abstract class V4LCameraOutput extends AbstractSensorOutput<V4LCameraDriv
     long systemTimeOffset = -1L;
     AtomicBoolean processingFrame = new AtomicBoolean();
     boolean started, firstFrame;
-    
-    
+
     public V4LCameraOutput(String name, V4LCameraDriver parentSensor)
     {
         super(name, parentSensor);
@@ -69,8 +74,17 @@ public abstract class V4LCameraOutput extends AbstractSensorOutput<V4LCameraDriv
             processingFrame.set(false);
             started = false;
             firstFrame = true;
-            frameGrabber.startCapture();
-//            parentSensor.getLogger().info("Started V4L capture with format: {}, resolution: {}x{}, FPS: {}", frameGrabber.getImageFormat().getName(), frameGrabber.getWidth(), frameGrabber.getHeight(), frameGrabber.getFrameInterval().denominator / frameGrabber.getFrameInterval().numerator);
+
+            try {
+                frameGrabber.startCapture();
+            } catch (StateException e) {
+                getLogger().warn("Capture already running, restarting...");
+                frameGrabber.stopCapture();
+                frameGrabber.startCapture();
+            }
+
+//            frameGrabber.startCapture();
+            parentSensor.getLogger().info("Started V4L capture with format: {}, resolution: {}x{}", frameGrabber.getImageFormat().getName(), frameGrabber.getWidth(), frameGrabber.getHeight());
 
             parentSensor.getLogger().debug("V4L frame capture started");
         }
@@ -101,39 +115,104 @@ public abstract class V4LCameraOutput extends AbstractSensorOutput<V4LCameraDriv
     {
         getLogger().error("Error while streaming V4L video", e);
     }
-    
-    
+
+
     @Override
-    public void nextFrame(VideoFrame frame)
-    {
-        if (processingFrame.compareAndSet(false, true))
-        {
-            try
-            {
-                // discard first frame because capture time is wrong
-                if (firstFrame)
-                    firstFrame = false;
-                else            
-                    processFrame(frame);
-                
-                frame.recycle();                
-            }
-            catch (Exception e)
-            {
-                getLogger().error("Error decoding frame, ts=" + frame.getCaptureTime());
-            }
-            finally
-            {
-                processingFrame.set(false);
-            }
+    public void nextFrame(VideoFrame frame) {
+        // Only process one frame at a time — skip if we’re still handling the previous one
+        if (!processingFrame.compareAndSet(false, true)) {
+            parentSensor.getLogger().debug("Frame skipped, ts={}",
+                    frame != null ? frame.getCaptureTime() : -1);
+            if (frame != null) frame.recycle();
+            return;
         }
-        
-        // else skip frame if we're lagging behind
-        else
-        {
-            parentSensor.getLogger().debug("Frame skipped, ts=" + frame.getCaptureTime());
+
+        int maxRetries = 3;
+        int retries = 0;
+        boolean frameOk = false;
+
+        try {
+            while (retries < maxRetries && !frameOk) {
+                if (frame == null) {
+                    getLogger().warn("Null frame received (attempt {}/{}).", retries + 1, maxRetries);
+                }
+                else if (frame.getBytes() == null) {
+                    getLogger().warn("Frame has null bytes (attempt {}/{}).", retries + 1, maxRetries);
+                }
+                else {
+                    byte[] bytes = frame.getBytes();
+                    int expectedLength = parentSensor.camParams.imgWidth * parentSensor.camParams.imgHeight * 3; // RGB24
+
+                    if (bytes.length == expectedLength) {
+                            processFrame(frame);
+
+                        frameOk = true;
+                        break;
+                    } else {
+                        getLogger().warn("Short frame (attempt {}/{}): expected={}, got={}",
+                                retries + 1, maxRetries, expectedLength, bytes.length);
+                    }
+                }
+
+                retries++;
+                if (retries < maxRetries) {
+                    Thread.sleep(10); // brief backoff to allow native buffers to sync
+                }
+            }
+
+            if (!frameOk) {
+                getLogger().warn("Skipping frame after {} failed attempts.", retries);
+            }
+
+        } catch (Exception e) {
+            getLogger().warn("Frame decode error: {}", e.getMessage(), e);
+            if (frame != null && frame.getBytes() != null) {
+                getLogger().debug("Failed frame seq={} ts={} len={}",
+                        frame.getSequenceNumber(),
+                        frame.getCaptureTime(),
+                        frame.getBytes().length);
+            }
+        } finally {
+            if (frame != null)
+                frame.recycle(); // always recycle the native buffer
+            processingFrame.set(false); // release lock for next frame
         }
     }
+
+
+//    @Override
+//    public void nextFrame(VideoFrame frame)
+//    {
+//        if (processingFrame.compareAndSet(false, true))
+//        {
+//            try {
+//                // discard first frame because capture time is wrong
+//                if (firstFrame) {
+//                    firstFrame = false;
+//                    System.out.println("firstFrame =" + firstFrame);
+//                } else {
+//                    processFrame(frame);
+//
+//                frame.recycle();
+//                System.out.println("frame recycled");
+//                }
+//            }
+//            catch (Exception e)
+//            {
+//                getLogger().error("Error decoding frame, ts=" + frame.getCaptureTime());
+//            }
+//            finally
+//            {
+//                processingFrame.set(false);
+//            }
+//        }
+//
+//        // else skip frame if we're lagging behind
+//        else
+//        {
+//            parentSensor.getLogger().debug("Frame skipped, ts=" + frame.getCaptureTime());
+//        }
+//    }
         
     
     @Override
