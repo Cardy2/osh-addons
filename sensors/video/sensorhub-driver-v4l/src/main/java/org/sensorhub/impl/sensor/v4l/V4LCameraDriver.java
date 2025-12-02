@@ -20,14 +20,10 @@ import org.sensorhub.impl.sensor.AbstractSensorModule;
 import au.edu.jcu.v4l4j.DeviceInfo;
 import au.edu.jcu.v4l4j.ImageFormat;
 import au.edu.jcu.v4l4j.VideoDevice;
-//import org.slf4j.Logger;
+import org.scijava.nativelib.NativeLoader;
 import org.slf4j.LoggerFactory;
-import org.vast.sensorML.SMLUtils;
-import org.vast.xml.XMLWriterException;
 
 import java.io.IOException;
-import java.util.UUID;
-
 
 /**
  * <p>
@@ -48,13 +44,21 @@ public class V4LCameraDriver extends AbstractSensorModule<V4LCameraConfig>
     V4LCameraControl controlInterface;
 
 
+//    static {
+//        try {
+//            NativeLoader.loadLibrary("libvideo");  // Auto-detects platform, extracts /natives/{platform}/libvideo.so to temp, and loads
+//            NativeLoader.loadLibrary("libv4l4j");  // Same for libv4l4j.so (if it's a native lib; skip if pure Java)
+//        } catch (java.io.IOException e) {
+//            LoggerFactory.getLogger(V4LCameraDriver.class).error("Unable to load native v4l library", e);
+//        }
+//    }
     static
     {
         try
         {
             // preload libvideo so it is extracted from JAR
             System.loadLibrary("video");
-            System.loadLibrary("v4l4j");   // extracts + loads libv4l4j.so
+            System.loadLibrary("v4l4j");   // loads libv4l4j.so
 
         }
         catch (Exception e)
@@ -62,18 +66,6 @@ public class V4LCameraDriver extends AbstractSensorModule<V4LCameraConfig>
             LoggerFactory.getLogger(V4LCameraDriver.class).error("Unable to load native v4l library", e);
         }
     }
-
-//    static {
-//        try {
-//            NativeLibrary instance = NativeLibrary.getInstance("video", ClassLoader.getSystemClassLoader());
-////
-//////        Native.register(org.openkinect.freenect.Freenect.class, instance);
-//            Native.register(au.edu.jcu.v4l4j.examples.videoViewer.DeviceChooser.class, instance);
-//        } catch (Exception e)
-//        {
-//            LoggerFactory.getLogger(V4LCameraDriver.class).error("Unable to load native v4l library", e);
-//        }
-//        }
 
 
     public V4LCameraDriver()
@@ -101,7 +93,8 @@ public class V4LCameraDriver extends AbstractSensorModule<V4LCameraConfig>
 
         if (config.virtualCamEnabled) {
             try {
-                virtualCam = new VirtualCam(config.deviceName, config.virtualCam, config.vcodec, config.pix_format, config.pix_format_convert, this.camParams, config.videoNr);
+                virtualCam = new VirtualCam(config.deviceName, config.virtualCam, config.vcodec, config.pix_format, config.pix_format_convert, this.camParams);
+
                 virtualCam.start();
 
             } catch (IOException | InterruptedException e) {

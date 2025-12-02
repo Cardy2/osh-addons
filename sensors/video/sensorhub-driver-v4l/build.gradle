@@ -16,8 +16,23 @@ dependencies {
   embeddedImpl 'edu.jcu:v4l4j:0.9.2'
   testImplementation project(path: ':sensorhub-driver-videocam', configuration: 'testArtifacts')
 
+  // Native-lib-loader for automatic extraction and loading of .so from JAR
+  // Use the latest version; check https://mvnrepository.com/artifact/org.scijava/native-lib-loader
+//  implementation 'org.scijava:native-lib-loader:2.9.2'
+
+  // https://mvnrepository.com/artifact/org.scijava/native-lib-loader
+//  implementation 'org.scijava:native-lib-loader:2.5.0'
 }
 
+// Ensure .so files are included as resources (default if in src/main/resources, but explicit for clarity)
+//sourceSets {
+//  main {
+//    resources {
+//      srcDirs = ['src/main/resources']
+//      include 'natives/**'  // Matches your embedded structure; adjust if renaming folders
+//    }
+//  }
+//}
 // exclude tests requiring connection to the sensor
 // these have to be run manually
 test {

@@ -20,7 +20,7 @@ public class V4LCameraParams implements Cloneable
     public String imgFormat = "RGB";
     public int imgWidth = 640;
     public int imgHeight = 480;
-    public int frameRate = 30;
+    public int frameRate = 15;
     
     
     @Override

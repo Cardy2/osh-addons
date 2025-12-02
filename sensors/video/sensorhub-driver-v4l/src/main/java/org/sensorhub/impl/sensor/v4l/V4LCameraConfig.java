@@ -49,12 +49,13 @@ public class V4LCameraConfig extends SensorConfig
         as /dev/video0 is not a user-facing device. This boolean should be switched on if a
         virtual camera is needed to access to picam video stream.
      */
+
     @Required
     @DisplayInfo(desc="Enable virtual camera using libcamera")
     public boolean virtualCamEnabled = true;
 
     @DisplayInfo(desc="Name of virtual cam device to use (e.g. /dev/video12)")
-    public String virtualCam = "/dev/video"+ this.videoNr;
+    public String virtualCam = "/dev/video12";
 
     @DisplayInfo(desc="Video codec to use (e.g. rawvideo, yuyv422, mjpeg )")
     public String vcodec = "rawvideo";
@@ -65,8 +66,8 @@ public class V4LCameraConfig extends SensorConfig
     @DisplayInfo(desc="Pixel format to convert to (e.g. bgr24, rgb24 )")
     public String pix_format_convert = "rgb24";
 
-    @DisplayInfo(desc="Virtual camera number to use (e.g. 10, 11, 12 )")
-    public int videoNr = 12;
+//    @DisplayInfo(desc="Virtual camera number to use (e.g. 10, 11, 12 )")
+//    public int videoNr = 12;
 
     @Override
     public LLALocation getLocation()

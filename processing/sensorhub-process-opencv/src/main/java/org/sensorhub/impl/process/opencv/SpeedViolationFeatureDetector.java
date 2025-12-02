@@ -113,22 +113,17 @@ class SpeedViolationFeatureDetector {
                 cvtColor(mat, gray, COLOR_BGR2GRAY);
                 equalizeHist(gray, gray);
 
-                // Downscale for faster detection (0.5 = half size = 4x fewer pixels)
-                double scale = 0.5; // Use 0.5-0.6 for Pi 5
-                Mat smallGray = new Mat();
-                resize(gray, smallGray, new Size(), scale, scale, INTER_AREA);
-
-                // Apply each classifier on downscaled image
+                // Apply each classifier on full-size image
                 for (CascadeClassifier classifier : classifiers) {
                     features.clear();
 
                     classifier.detectMultiScale(
-                        smallGray, features,
-                        1.15,  // scaleFactor - higher = fewer scales = faster (was 1.05)
-                        4,     // minNeighbors - higher = fewer false positives = faster (was 3)
+                        gray, features,  // Use full-size gray image
+                        1.10,  // Slightly higher = fewer scales checked = faster (was 1.05)
+                        3,     // Keep as is
                         0,
-                        new Size((int)(smallGray.cols() / 10.0), (int)(smallGray.rows() / 10.0)),
-                        new Size()
+                        new Size(mat.cols() / 6, mat.rows() / 6),
+                        new Size(mat.cols(), mat.rows())
                     );
 
                     long numberOfVehicles = features.size();
@@ -138,13 +133,13 @@ class SpeedViolationFeatureDetector {
                     // Tracks which VehicleTracking IDs were matched in the current frame
                     Set<Integer> matchedThisFrame = new HashSet<>();
 
-                    if (detected) {
+                    if (detected) { 
                         if (!started) {
                             started = true;
-                            logger.info("TRANSITION: started=true (first vehicle detected)");
+                           logger.info("TRANSITION: started=true (first vehicle detected)");
                         }
-                        logDebug("Detection result: detected= " + detected + ", numberOfVehicles= " +
-                                numberOfVehicles + "}, started= " + started);
+                       logDebug("Detection result: detected= " + detected + ", numberOfVehicles= " +
+                               numberOfVehicles + "}, started= " + started);
 
                         numVehicles.getData().setIntValue((int) numberOfVehicles);
                         bboxList.updateSize();
@@ -153,21 +148,15 @@ class SpeedViolationFeatureDetector {
                         int idx = 0;
 
                         for (int i = 0; i < features.size(); i++) {
-                            Rect smallFeature = features.get(i);
-                            Rect feature = new Rect(
-                                (int)(smallFeature.x() / scale),
-                                (int)(smallFeature.y() / scale),
-                                (int)(smallFeature.width() / scale),
-                                (int)(smallFeature.height() / scale)
-                            );
+                            Rect feature = features.get(i);  // Already full-size, no scaling needed
 
-                            // Store bounding box coordinates (from scaled-up rect)
+                            // Store bounding box coordinates
                             bboxData.setIntValue(idx++, feature.x());
                             bboxData.setIntValue(idx++, feature.y());
                             bboxData.setIntValue(idx++, feature.width());
                             bboxData.setIntValue(idx++, feature.height());
 
-                            // Draw on original full-size mat
+                            // Only draw if new detection or tracking changed
                             rectangle(mat, feature, new Scalar(0, 255, 255, 1.0));
 
                             // Match to existing tracker or create new one
@@ -203,7 +192,7 @@ class SpeedViolationFeatureDetector {
                     // Handle vehicles that ended (no longer detected)
                     if (!detected && started) {
                         // No detections - end all active trackers
-                        List<Integer> vehiclesToRemove = new ArrayList<>();
+                         List<Integer> vehiclesToRemove = new ArrayList<>();
                         for (VehicleTracking vt : activeVehicles.values()) {
                             if (vt.isActive()) {
                                 double end = inputTimestamp.getData().getDoubleValue();
@@ -213,19 +202,19 @@ class SpeedViolationFeatureDetector {
                                 foiId.getData().setIntValue(vt.getId());
                                 logDebug("Ended vehicle tracker: FOI ID= " + vt.getId() +
                                         ", duration= " + (vt.getDetectionEnd() - vt.getDetectionStart()) + "s");
-                                vehiclesToRemove.add(vt.getId()); // Collect IDs to remove
+//                                 vehiclesToRemove.add(vt.getId()); // Collect IDs to remove
                             }
                         }
                         // Remove ended vehicles from map
-                        for (Integer vehicleId : vehiclesToRemove) {
-                            activeVehicles.remove(vehicleId);
-                        }
+//                         for (Integer vehicleId : vehiclesToRemove) {
+//                             activeVehicles.remove(vehicleId);
+//                         }
                         logger.info("TRANSITION: started=false (all vehicles disappeared)");
                         started = false;
 
                     } else if (detected && started) {
                         // Detections exist but some trackers weren't matched - they disappeared
-                        List<Integer> vehiclesToRemove = new ArrayList<>();
+//                         List<Integer> vehiclesToRemove = new ArrayList<>();
                         for (VehicleTracking vt : activeVehicles.values()) {
                             if (vt.isActive() && !matchedThisFrame.contains(vt.getId())) {
                                 double end = inputTimestamp.getData().getDoubleValue();
@@ -233,15 +222,15 @@ class SpeedViolationFeatureDetector {
                                 startTime.getData().setDoubleValue(vt.getDetectionStart());
                                 endTime.getData().setDoubleValue(vt.getDetectionEnd());
                                 foiId.getData().setIntValue(vt.getId());
-                                logDebug("Ended unmatched vehicle tracker: FOI ID= " + vt.getId()
-                                        + ", duration= " + (vt.getDetectionEnd() - vt.getDetectionStart()) + "s ");
-                                vehiclesToRemove.add(vt.getId()); // Collect IDs to remove
+//                                logDebug("Ended unmatched vehicle tracker: FOI ID= " + vt.getId()
+//                                        + ", duration= " + (vt.getDetectionEnd() - vt.getDetectionStart()) + "s ");
+//                                 vehiclesToRemove.add(vt.getId()); // Collect IDs to remove
                             }
                         }
                         // Remove unmatched vehicles from map
-                        for (Integer vehicleId : vehiclesToRemove) {
-                            activeVehicles.remove(vehicleId);
-                        }
+//                         for (Integer vehicleId : vehiclesToRemove) {
+//                             activeVehicles.remove(vehicleId);
+//                         }
 
                         logDebug("Features detected: " + features.size() + ", active vehicles: " + activeVehicles.size());
                     }
@@ -341,6 +330,8 @@ class SpeedViolationFeatureDetector {
     public boolean getStarted() {
         return started;
     }
+
+    // private static final boolean DEBUG_ENABLED = false; // Set to false for production
 
     private void logDebug(String message) {
         // Use System.out since loggers aren't working
