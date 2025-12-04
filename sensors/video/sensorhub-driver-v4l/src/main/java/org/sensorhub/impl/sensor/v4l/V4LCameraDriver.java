@@ -20,7 +20,7 @@ import org.sensorhub.impl.sensor.AbstractSensorModule;
 import au.edu.jcu.v4l4j.DeviceInfo;
 import au.edu.jcu.v4l4j.ImageFormat;
 import au.edu.jcu.v4l4j.VideoDevice;
-import org.scijava.nativelib.NativeLoader;
+//import org.scijava.nativelib.NativeLoader;
 import org.slf4j.LoggerFactory;
 
 import java.io.IOException;

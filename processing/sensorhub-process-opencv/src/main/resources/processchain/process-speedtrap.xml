@@ -200,55 +200,6 @@
                     <sml:destination ref="outputs/detectedVehicles/bboxEndTime"/>
                 </sml:Link>
             </sml:connection>
-
-<!--            <sml:connection>-->
-<!--                <sml:Link>-->
-<!--                    <sml:source ref="components/radar_process/outputs/vehicleCapture/captureImage"/>-->
-<!--                    <sml:destination ref="outputs/camOutput_RGB/img"/>-->
-<!--                </sml:Link>-->
-<!--            </sml:connection>-->
-<!--            <sml:connection>-->
-<!--                <sml:Link>-->
-<!--                    <sml:source ref="components/radar_process/outputs/vehicleCapture/captureTime"/>-->
-<!--                    <sml:destination ref="outputs/camOutput_RGB/time"/>-->
-<!--                </sml:Link>-->
-<!--            </sml:connection>-->
-<!--            <sml:connection>-->
-<!--                <sml:Link>-->
-<!--                    <sml:source ref="components/ops241a/outputs/OPS241A/detectionSpeed"/>-->
-<!--                    <sml:destination ref="components/radar_process/inputs/radarInputs/velocity"/>-->
-<!--                </sml:Link>-->
-<!--            </sml:connection>-->
-<!--            <sml:connection>-->
-<!--                <sml:Link>-->
-<!--                    <sml:source ref="components/radar_process/outputs/radarOutputs/velocity"/>-->
-<!--                    <sml:destination ref="outputs/radar/velocity"/>-->
-<!--                </sml:Link>-->
-<!--            </sml:connection>-->
-<!--            <sml:connection>-->
-<!--                <sml:Link>-->
-<!--                    <sml:source ref="components/radar_process/outputs/radarOutputs/speedThresholdBoolean"/>-->
-<!--                    <sml:destination ref="outputs/radar/speedThresholdBoolean"/>-->
-<!--                </sml:Link>-->
-<!--            </sml:connection>-->
-<!--            <sml:connection>-->
-<!--                <sml:Link>-->
-<!--                    <sml:source ref="components/radar_process/outputs/radarOutputs/overThresholdParam"/>-->
-<!--                    <sml:destination ref="outputs/radar/overThresholdParam"/>-->
-<!--                </sml:Link>-->
-<!--            </sml:connection>-->
-<!--            <sml:connection>-->
-<!--                <sml:Link>-->
-<!--                    <sml:source ref="components/ops241a/outputs/OPS241A/timestamp"/>-->
-<!--                    <sml:destination ref="components/speed_violation_process/inputs/velocityInput/time"/>-->
-<!--                </sml:Link>-->
-<!--            </sml:connection>-->
-<!--            <sml:connection>-->
-<!--                <sml:Link>-->
-<!--                    <sml:source ref="components/ops241a/outputs/OPS241A/detectionSpeed"/>-->
-<!--                    <sml:destination ref="components/speed_violation_process/inputs/velocityInput/velocity"/>-->
-<!--                </sml:Link>-->
-<!--            </sml:connection>-->
             <sml:connection>
                 <sml:Link>
                     <sml:source ref="components/speed_violation_process/outputs/speedViolationCapture/captureTime"/>
