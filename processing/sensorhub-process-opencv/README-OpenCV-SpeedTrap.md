@@ -1,7 +1,7 @@
 # OpenCV Vehicle Recognition
 
 ## How to Build
-- Make sure to include this process, `sensors/detection/sensorhub-driver-OPS241A`, &
+- Make sure to include this process, `osh-addons/sensors/detection/sensorhub-driver-OPS241A`, &
 `osh-addons/sensors/video/sensorhub-driver-v4l` in project-level settings.gradle and build.gradle
 - Run with gradle `build -x test -x osgi`
 - After building, ensure there is a copy of the process-chain, `process-speedtrap.xml`, 
