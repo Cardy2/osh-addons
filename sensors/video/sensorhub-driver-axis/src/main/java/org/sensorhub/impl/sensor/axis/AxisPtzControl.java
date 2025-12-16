@@ -88,8 +88,11 @@ public class AxisPtzControl extends AbstractSensorControl<AxisCameraDriver>
 
             var conn = optionsURL.openConnection();
             conn.setRequestProperty("Authorization", authHeaderValue);
+            conn.setRequestProperty("Basic realm", "AXIS_ACCC8E6E46EC");
+
             conn.connect();
-            InputStream is = optionsURL.openStream();
+            InputStream is = conn.getInputStream();
+//            InputStream is = optionsURL.openStream();
             BufferedReader bReader = new BufferedReader(new InputStreamReader(is));
 
             // get limit values from IP stream

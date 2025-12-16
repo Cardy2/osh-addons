@@ -51,6 +51,7 @@ public class AxisVideoOutput extends AbstractSensorOutput < AxisCameraDriver > {
     DataEncoding videoEncoding;
     boolean reconnect;
     boolean streaming;
+    String authHeaderValue;
 
     URL getImgSizeUrl;
 
@@ -76,12 +77,16 @@ public class AxisVideoOutput extends AbstractSensorOutput < AxisCameraDriver > {
             String password = config.http.password;
             String userPass = username + ":" + password;
             String encoded = Base64.getEncoder().encodeToString(userPass.getBytes());
-            String authHeaderValue = "Basic " + encoded;
+            authHeaderValue = "Basic " + encoded;
 
             var conn = getImgSizeUrl.openConnection();
             conn.setRequestProperty("Authorization", authHeaderValue);
+            conn.setRequestProperty("Basic realm", "AXIS_ACCC8E6E46EC");
+
             conn.connect();
-            int[] imgSize = getImageSize();
+            InputStream is = conn.getInputStream();
+
+            int[] imgSize = getImageSize(is);
             VideoCamHelper fac = new VideoCamHelper();
 
             // build output structure
@@ -94,9 +99,9 @@ public class AxisVideoOutput extends AbstractSensorOutput < AxisCameraDriver > {
     }
 
 
-    protected int[] getImageSize() throws IOException {
+    protected int[] getImageSize(InputStream is) throws IOException {
 
-        BufferedReader reader = new BufferedReader(new InputStreamReader(getImgSizeUrl.openStream()));
+        BufferedReader reader = new BufferedReader(new InputStreamReader(is));
 
         int imgSize[] = new int[2];
         String line;
@@ -123,7 +128,10 @@ public class AxisVideoOutput extends AbstractSensorOutput < AxisCameraDriver > {
                 public void run() {
                     // send http query
                     try {
-                        InputStream is = new BufferedInputStream(videoUrl.openStream());
+                        var conn = videoUrl.openConnection();
+                        conn.setRequestProperty("Authorization", authHeaderValue);
+                        conn.connect();
+                        InputStream is = conn.getInputStream();
                         MjpegStream stream = new MjpegStream(is, null);
                         streaming = true;
 

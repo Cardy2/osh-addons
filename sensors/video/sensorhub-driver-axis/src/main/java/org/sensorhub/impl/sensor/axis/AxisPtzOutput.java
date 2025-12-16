@@ -56,6 +56,7 @@ public class AxisPtzOutput extends AbstractSensorOutput<AxisCameraDriver>
     boolean polling;
     Timer timer;
     VideoCamHelper videoHelper;
+    String authHeaderValue;
 
     // Set default timezone to GMT; check TZ in init below
     TimeZone tz = TimeZone.getTimeZone("UTC");
@@ -106,10 +107,13 @@ public class AxisPtzOutput extends AbstractSensorOutput<AxisCameraDriver>
             String password = config.http.password;
             String userPass = username + ":" + password;
             String encoded = Base64.getEncoder().encodeToString(userPass.getBytes());
-            String authHeaderValue = "Basic " + encoded;
+            authHeaderValue = "Basic " + encoded;
 
             var conn = optionsURL.openConnection();
             conn.setRequestProperty("Authorization", authHeaderValue);
+            conn.setRequestProperty("Basic realm", "AXIS_ACCC8E6E46EC");
+
+
             conn.connect();
             InputStream is = conn.getInputStream();
 //            InputStream is = optionsURL.openStream();
@@ -167,8 +171,14 @@ public class AxisPtzOutput extends AbstractSensorOutput<AxisCameraDriver>
                     // send http query
                     try
                     {
-                        is = ptzURL.openStream();
-                        BufferedReader reader = new BufferedReader(new InputStreamReader(is));
+                        var conn = ptzURL.openConnection();
+                        conn.setRequestProperty("Authorization", authHeaderValue);
+                        conn.setRequestProperty("Basic realm", "AXIS_ACCC8E6E46EC");
+
+
+                        conn.connect();
+                        InputStream ptzIs = conn.getInputStream();
+                        BufferedReader reader = new BufferedReader(new InputStreamReader(ptzIs));
                         dataStruct.renewDataBlock();
 
                         // set sampling time
