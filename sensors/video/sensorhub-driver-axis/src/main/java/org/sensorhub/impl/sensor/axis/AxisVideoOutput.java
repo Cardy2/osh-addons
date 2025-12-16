@@ -22,6 +22,7 @@ import java.io.InputStream;
 import java.io.InputStreamReader;
 import java.net.URL;
 import java.net.MalformedURLException;
+import java.util.Base64;
 import javax.media.Buffer;
 import net.opengis.swe.v20.DataBlock;
 import net.opengis.swe.v20.DataComponent;
@@ -69,6 +70,17 @@ public class AxisVideoOutput extends AbstractSensorOutput < AxisCameraDriver > {
     protected void init() throws SensorException {
         try {
             // get image size from camera HTTP interface
+            AxisCameraConfig config = parentSensor.getConfiguration();
+
+            String username = config.http.user;
+            String password = config.http.password;
+            String userPass = username + ":" + password;
+            String encoded = Base64.getEncoder().encodeToString(userPass.getBytes());
+            String authHeaderValue = "Basic " + encoded;
+
+            var conn = getImgSizeUrl.openConnection();
+            conn.setRequestProperty("Authorization", authHeaderValue);
+            conn.connect();
             int[] imgSize = getImageSize();
             VideoCamHelper fac = new VideoCamHelper();
 

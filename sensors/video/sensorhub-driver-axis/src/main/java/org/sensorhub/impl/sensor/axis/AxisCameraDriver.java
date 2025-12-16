@@ -131,6 +131,7 @@ public class AxisCameraDriver extends AbstractSensorModule < AxisCameraConfig > 
                     String encoded = Base64.getEncoder().encodeToString(userPass.getBytes());
                     String authHeaderValue = "Basic " + encoded;
                     conn.setRequestProperty("Authorization", authHeaderValue);
+                    conn.setRequestProperty("Basic realm", "AXIS_ACCC8E6E46EC");
                 }
             }
 
@@ -138,21 +139,21 @@ public class AxisCameraDriver extends AbstractSensorModule < AxisCameraConfig > 
             public boolean tryConnect() throws IOException {
                 // Set Authenticator before making connection for Java 21 compatibility
                 // HttpURLConnection in Java 21 may restrict setting Authorization header directly
-                String username = config.http.user;
-                String password = config.http.password;
-                if (username != null && !username.isEmpty()) {
-                    final String user = username;
-                    final String pass = password;
-                    Authenticator.setDefault(new Authenticator() {
-                        @Override
-                        protected PasswordAuthentication getPasswordAuthentication() {
-                            if (getRequestingHost().equals(config.http.remoteHost)) {
-                                return new PasswordAuthentication(user, pass.toCharArray());
-                            }
-                            return null;
-                        }
-                    });
-                }
+//                String username = config.http.user;
+//                String password = config.http.password;
+//                if (username != null && !username.isEmpty()) {
+//                    final String user = username;
+//                    final String pass = password;
+//                    Authenticator.setDefault(new Authenticator() {
+//                        @Override
+//                        protected PasswordAuthentication getPasswordAuthentication() {
+//                            if (getRequestingHost().equals(config.http.remoteHost)) {
+//                                return new PasswordAuthentication(user, pass.toCharArray());
+//                            }
+//                            return null;
+//                        }
+//                    });
+//                }
 
 //                Authenticator.setDefault(new Authenticator() {
 //                    @Override

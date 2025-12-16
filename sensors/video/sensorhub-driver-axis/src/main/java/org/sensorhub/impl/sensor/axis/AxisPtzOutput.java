@@ -23,6 +23,7 @@ import java.io.InputStreamReader;
 import java.net.URL;
 import java.text.DateFormat;
 import java.text.SimpleDateFormat;
+import java.util.Base64;
 import java.util.TimeZone;
 import java.util.Timer;
 import java.util.TimerTask;
@@ -65,7 +66,7 @@ public class AxisPtzOutput extends AbstractSensorOutput<AxisCameraDriver>
     public AxisPtzOutput(AxisCameraDriver driver)
     {
         super("ptzOutput", driver);
-        
+
         try {
 
             optionsURL = new URL(parentSensor.getHostUrl() + driver.VAPIX_QUERY_PARAMS_LIST_GROUP_PTZ);
@@ -99,9 +100,20 @@ public class AxisPtzOutput extends AbstractSensorOutput<AxisCameraDriver>
         {
 
             /** request PTZ Limits  **/
-            InputStream is = optionsURL.openStream();
-            BufferedReader limitReader = new BufferedReader(new InputStreamReader(is));
+            AxisCameraConfig config = parentSensor.getConfiguration();
 
+            String username = config.http.user;
+            String password = config.http.password;
+            String userPass = username + ":" + password;
+            String encoded = Base64.getEncoder().encodeToString(userPass.getBytes());
+            String authHeaderValue = "Basic " + encoded;
+
+            var conn = optionsURL.openConnection();
+            conn.setRequestProperty("Authorization", authHeaderValue);
+            conn.connect();
+            InputStream is = conn.getInputStream();
+//            InputStream is = optionsURL.openStream();
+            BufferedReader limitReader = new BufferedReader(new InputStreamReader(is));
             // get limit values from IP stream
             String line;
             while ((line = limitReader.readLine()) != null)

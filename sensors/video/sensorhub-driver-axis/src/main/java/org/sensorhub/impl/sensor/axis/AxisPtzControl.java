@@ -19,6 +19,7 @@ import java.io.BufferedReader;
 import java.io.InputStream;
 import java.io.InputStreamReader;
 import java.net.URL;
+import java.util.Base64;
 import java.util.Collection;
 import java.net.MalformedURLException;
 import net.opengis.swe.v20.DataBlock;
@@ -78,7 +79,16 @@ public class AxisPtzControl extends AbstractSensorControl<AxisCameraDriver>
         
         // get PTZ limits
         try
-        {    	  
+        {
+            String username = config.http.user;
+            String password = config.http.password;
+            String userPass = username + ":" + password;
+            String encoded = Base64.getEncoder().encodeToString(userPass.getBytes());
+            String authHeaderValue = "Basic " + encoded;
+
+            var conn = optionsURL.openConnection();
+            conn.setRequestProperty("Authorization", authHeaderValue);
+            conn.connect();
             InputStream is = optionsURL.openStream();
             BufferedReader bReader = new BufferedReader(new InputStreamReader(is));
 
