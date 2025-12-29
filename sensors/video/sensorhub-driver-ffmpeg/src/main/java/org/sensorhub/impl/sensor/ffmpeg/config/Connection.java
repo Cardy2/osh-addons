@@ -40,4 +40,12 @@ public class Connection {
 
     @DisplayInfo(label = "Inject Extradata for Streaming", desc = "Injects extradata into the video stream. Set true if this driver is being used to output a live video stream for late-join decoders.")
     public boolean injectExtradata = true;
+
+    /**
+     * SDP content to use for the connection.
+     * If this is provided, it will be written to a temporary file and used as the
+     * connection string.
+     */
+    @DisplayInfo(label = "SDP Content", desc = "Paste the full SDP content here. This will override the connection string.")
+    public String sdpContent;
 }

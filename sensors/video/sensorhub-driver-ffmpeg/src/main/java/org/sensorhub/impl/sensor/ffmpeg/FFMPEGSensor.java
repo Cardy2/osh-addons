@@ -20,7 +20,11 @@ import org.sensorhub.impl.sensor.ffmpeg.outputs.VideoOutput;
 import org.sensorhub.mpegts.MpegTsProcessor;
 import org.vast.swe.SWEConstants;
 
+import java.io.File;
+import java.io.FileOutputStream;
+import java.io.IOException;
 import java.net.UnknownHostException;
+import java.nio.charset.StandardCharsets;
 import java.util.concurrent.Executors;
 import java.util.concurrent.ScheduledExecutorService;
 
@@ -199,16 +203,37 @@ public class FFMPEGSensor extends AbstractSensorModule<FFMPEGConfig> {
         if (mpegTsProcessor == null) {
             logger.info("Opening MPEG TS connection.");
 
+            String connectionString = config.connection.connectionString;
+
+            // Check if SDP content is provided
+            if (config.connection.sdpContent != null && !config.connection.sdpContent.isEmpty()) {
+                try {
+                    File sdpFile = File.createTempFile("stream", ".sdp");
+                    sdpFile.deleteOnExit();
+                    try (FileOutputStream fos = new FileOutputStream(sdpFile)) {
+                        fos.write(config.connection.sdpContent.getBytes(StandardCharsets.UTF_8));
+                    }
+                    connectionString = sdpFile.getAbsolutePath();
+                    logger.info("Using SDP file at: {}", connectionString);
+                } catch (IOException e) {
+                    logger.error("Failed to create temporary SDP file", e);
+                }
+            }
+
             // Regex to determine if the connection string is a file path.
             String fileRegex = "^(?:[a-zA-Z]:)?[\\\\/].*";
 
             // For files, the FPS and loop settings are used to control playback.
-            if (config.connection.connectionString.matches(fileRegex)) {
-                logger.info("Opening file stream with FPS: {} and loop: {}", config.connection.fps, config.connection.loop);
-                mpegTsProcessor = new MpegTsProcessor(config.connection.connectionString, config.connection.fps, config.connection.loop);
+            // BUT if it is an SDP file, we want to treat it as a network stream (no loop,
+            // no separate FPS control)
+            boolean isSdp = connectionString.endsWith(".sdp");
+            if (!isSdp && connectionString.matches(fileRegex)) {
+                logger.info("Opening file stream with FPS: {} and loop: {}", config.connection.fps,
+                        config.connection.loop);
+                mpegTsProcessor = new MpegTsProcessor(connectionString, config.connection.fps, config.connection.loop);
             } else {
                 logger.info("Opening network stream");
-                mpegTsProcessor = new MpegTsProcessor(config.connection.connectionString);
+                mpegTsProcessor = new MpegTsProcessor(connectionString);
             }
             mpegTsProcessor.setInjectVideoExtradata(config.connection.injectExtradata);
         }
