@@ -46,6 +46,7 @@ import org.vast.data.DataChoiceImpl;
 public class AxisPtzControl extends AbstractSensorControl<AxisCameraDriver>
 {
 	DataChoice commandData;
+    String authHeaderValue;
 
     // define and set default values
     double minPan = -180.0;
@@ -84,15 +85,14 @@ public class AxisPtzControl extends AbstractSensorControl<AxisCameraDriver>
             String password = config.http.password;
             String userPass = username + ":" + password;
             String encoded = Base64.getEncoder().encodeToString(userPass.getBytes());
-            String authHeaderValue = "Basic " + encoded;
+            authHeaderValue = "Basic " + encoded;
 
             var conn = optionsURL.openConnection();
             conn.setRequestProperty("Authorization", authHeaderValue);
             conn.setRequestProperty("Basic realm", "AXIS_ACCC8E6E46EC");
-
             conn.connect();
+
             InputStream is = conn.getInputStream();
-//            InputStream is = optionsURL.openStream();
             BufferedReader bReader = new BufferedReader(new InputStreamReader(is));
 
             // get limit values from IP stream
@@ -158,18 +158,28 @@ public class AxisPtzControl extends AbstractSensorControl<AxisCameraDriver>
                 // pan + tilt + zoom (supported since v2 at least)
         	    optionsURL = new URL(parentSensor.getHostUrl() + "/com/ptz.cgi?pan=" + preset.pan
         	    		+ "&tilt=" + preset.tilt + "&zoom=" + preset.zoom);
-                InputStream is = optionsURL.openStream();
+
+                var conn = optionsURL.openConnection();
+                conn.setRequestProperty("Authorization", authHeaderValue);
+                conn.setRequestProperty("Basic realm", "AXIS_ACCC8E6E46EC");
+                conn.connect();
+
+                InputStream is = conn.getInputStream();
                 is.close();
-       	    
         	}
         	
         	// Act on full PTZ Position
         	else if (itemID.equalsIgnoreCase(VideoCamHelper.TASKING_PTZ_POS))
         	{
-
         	    optionsURL = new URL(parentSensor.getHostUrl() + "/com/ptz.cgi?pan=" + data.getStringValue(0)
         	    		+ "&tilt=" + data.getStringValue(1) + "&zoom=" + data.getStringValue(2));
-                InputStream is = optionsURL.openStream();
+
+                var conn = optionsURL.openConnection();
+                conn.setRequestProperty("Authorization", authHeaderValue);
+                conn.setRequestProperty("Basic realm", "AXIS_ACCC8E6E46EC");
+                conn.connect();
+
+                InputStream is = conn.getInputStream();
                 is.close();
 
         	}
@@ -191,8 +201,14 @@ public class AxisPtzControl extends AbstractSensorControl<AxisCameraDriver>
         			cmd = "rzoom";
         			      			
                 optionsURL = new URL(parentSensor.getHostUrl() + "/com/ptz.cgi?" + cmd + "=" + itemValue);
-                InputStream is = optionsURL.openStream();
-                is.close();       		
+
+                var conn = optionsURL.openConnection();
+                conn.setRequestProperty("Authorization", authHeaderValue);
+                conn.setRequestProperty("Basic realm", "AXIS_ACCC8E6E46EC");
+                conn.connect();
+
+                InputStream is = conn.getInputStream();
+                is.close();
         	}
         	
 	    }

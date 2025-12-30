@@ -20,6 +20,7 @@ import java.io.IOException;
 import java.io.InputStream;
 import java.io.InputStreamReader;
 import java.net.URL;
+import java.util.Base64;
 import java.util.Collection;
 import net.opengis.swe.v20.DataBlock;
 import net.opengis.swe.v20.DataChoice;
@@ -46,6 +47,7 @@ import org.vast.data.DataChoiceImpl;
 public class DahuaPtzControl extends AbstractSensorControl<DahuaCameraDriver>
 {
 	DataChoice commandData;
+    String authHeaderValue;
 
     // define and set default values
     double minPan = 0.0;
@@ -81,7 +83,18 @@ public class DahuaPtzControl extends AbstractSensorControl<DahuaCameraDriver>
         try
         {    	         
             URL optionsURL = new URL(parentSensor.getHostUrl() + "/ptz.cgi?action=getCurrentProtocolCaps&channel=0");
-            InputStream is = optionsURL.openStream();
+
+            String username = config.http.user;
+            String password = config.http.password;
+            String userPass = username + ":" + password;
+            String encoded = Base64.getEncoder().encodeToString(userPass.getBytes());
+            authHeaderValue = "Basic " + encoded;
+
+            var conn = optionsURL.openConnection();
+            conn.setRequestProperty("Authorization", authHeaderValue);
+            conn.connect();
+
+            InputStream is = conn.getInputStream();
             BufferedReader bReader = new BufferedReader(new InputStreamReader(is));
 
             // get limit values from IP stream
@@ -219,6 +232,11 @@ public class DahuaPtzControl extends AbstractSensorControl<DahuaCameraDriver>
         	// send request to absolute pan/tilt/zoom positions
             URL optionsURL = new URL(parentSensor.getHostUrl() + 
             		"/ptz.cgi?action=start&channel=0&code=PositionABS&arg1=" + pan + "&arg2=" + tilt + "&arg3=" + zoom*120);
+
+            var conn = optionsURL.openConnection();
+            conn.setRequestProperty("Authorization", authHeaderValue);
+            conn.connect();
+
             if (!alwaysRequestPtzStatus)
             {
                 parentSensor.ptzDataInterface.pan = (float)pan;
@@ -228,7 +246,7 @@ public class DahuaPtzControl extends AbstractSensorControl<DahuaCameraDriver>
             }
             
             // add BufferReader and read first line; if "Error", read second line and log error
-            InputStream is = optionsURL.openStream();
+            InputStream is = conn.getInputStream();
             is.close();
 	    }
 	    catch (Exception e)

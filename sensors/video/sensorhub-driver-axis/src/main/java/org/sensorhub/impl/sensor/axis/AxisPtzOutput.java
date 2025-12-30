@@ -99,7 +99,6 @@ public class AxisPtzOutput extends AbstractSensorOutput<AxisCameraDriver>
         
         try
         {
-
             /** request PTZ Limits  **/
             AxisCameraConfig config = parentSensor.getConfiguration();
 
@@ -112,11 +111,9 @@ public class AxisPtzOutput extends AbstractSensorOutput<AxisCameraDriver>
             var conn = optionsURL.openConnection();
             conn.setRequestProperty("Authorization", authHeaderValue);
             conn.setRequestProperty("Basic realm", "AXIS_ACCC8E6E46EC");
-
-
             conn.connect();
+
             InputStream is = conn.getInputStream();
-//            InputStream is = optionsURL.openStream();
             BufferedReader limitReader = new BufferedReader(new InputStreamReader(is));
             // get limit values from IP stream
             String line;
@@ -174,9 +171,8 @@ public class AxisPtzOutput extends AbstractSensorOutput<AxisCameraDriver>
                         var conn = ptzURL.openConnection();
                         conn.setRequestProperty("Authorization", authHeaderValue);
                         conn.setRequestProperty("Basic realm", "AXIS_ACCC8E6E46EC");
-
-
                         conn.connect();
+
                         InputStream ptzIs = conn.getInputStream();
                         BufferedReader reader = new BufferedReader(new InputStreamReader(ptzIs));
                         dataStruct.renewDataBlock();

@@ -19,9 +19,7 @@ import java.io.BufferedReader;
 import java.io.IOException;
 import java.io.InputStream;
 import java.io.InputStreamReader;
-import java.net.Authenticator;
 import java.net.HttpURLConnection;
-import java.net.PasswordAuthentication;
 import java.util.Base64;
 
 import net.opengis.sensorml.v20.IdentifierList;
@@ -29,7 +27,6 @@ import net.opengis.sensorml.v20.Term;
 import org.sensorhub.api.sensor.SensorException;
 import org.sensorhub.impl.comm.RobustHTTPConnection;
 import org.sensorhub.impl.module.RobustConnection;
-import org.sensorhub.impl.security.ClientAuth;
 import org.sensorhub.impl.sensor.AbstractSensorModule;
 import org.sensorhub.impl.sensor.rtpcam.RTPVideoOutput;
 import org.sensorhub.impl.sensor.rtpcam.RTSPClient;
@@ -70,6 +67,7 @@ public class AxisCameraDriver extends AbstractSensorModule < AxisCameraConfig > 
     String modelNumber;
     String longName;
     String shortName;
+    String authHeaderValue;
 
     int vapixVersion = 0;
 
@@ -124,12 +122,9 @@ public class AxisCameraDriver extends AbstractSensorModule < AxisCameraConfig > 
 
                 if (username != null && !username.isEmpty())
                 {
-                    // Set Authorization header directly
-                    // Note: In Java 21, HttpURLConnection may restrict this, but Authenticator
-                    // is set in tryConnect() as a fallback for Java 21 compatibility
                     String userPass = username + ":" + password;
                     String encoded = Base64.getEncoder().encodeToString(userPass.getBytes());
-                    String authHeaderValue = "Basic " + encoded;
+                    authHeaderValue = "Basic " + encoded;
                     conn.setRequestProperty("Authorization", authHeaderValue);
                     conn.setRequestProperty("Basic realm", "AXIS_ACCC8E6E46EC");
                 }
@@ -137,36 +132,6 @@ public class AxisCameraDriver extends AbstractSensorModule < AxisCameraConfig > 
 
             @Override
             public boolean tryConnect() throws IOException {
-                // Set Authenticator before making connection for Java 21 compatibility
-                // HttpURLConnection in Java 21 may restrict setting Authorization header directly
-//                String username = config.http.user;
-//                String password = config.http.password;
-//                if (username != null && !username.isEmpty()) {
-//                    final String user = username;
-//                    final String pass = password;
-//                    Authenticator.setDefault(new Authenticator() {
-//                        @Override
-//                        protected PasswordAuthentication getPasswordAuthentication() {
-//                            if (getRequestingHost().equals(config.http.remoteHost)) {
-//                                return new PasswordAuthentication(user, pass.toCharArray());
-//                            }
-//                            return null;
-//                        }
-//                    });
-//                }
-
-//                Authenticator.setDefault(new Authenticator() {
-//                    @Override
-//                    protected PasswordAuthentication getPasswordAuthentication() {
-//                        if (getRequestorType() == RequestorType.SERVER) {
-//                            String user = config.http.user;
-//                            String pass = config.http.password;
-//                            return new PasswordAuthentication(user, pass.toCharArray());
-//                        }
-//                        return null;
-//                    }
-//                });
-
                 // check we can reach the HTTP server
                 // and access the param URL
                 HttpURLConnection conn = tryConnectGET(getHostUrl() + VAPIX_QUERY_PARAMS_LIST);
@@ -378,13 +343,6 @@ public class AxisCameraDriver extends AbstractSensorModule < AxisCameraConfig > 
     }
 
 
-//    protected void setAuth() {
-//        ClientAuth.getInstance().setUser(config.http.user);
-//        if (config.http.password != null)
-//            ClientAuth.getInstance().setPassword(config.http.password.toCharArray());
-//    }
-
-
     @Override
     protected void doStop() {
         if (connection != null)
@@ -412,7 +370,6 @@ public class AxisCameraDriver extends AbstractSensorModule < AxisCameraConfig > 
 
 
     protected String getHostUrl() {
-//        setAuth();
         return hostUrl;
     }
 }

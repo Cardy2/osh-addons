@@ -82,8 +82,8 @@ public class AxisVideoOutput extends AbstractSensorOutput < AxisCameraDriver > {
             var conn = getImgSizeUrl.openConnection();
             conn.setRequestProperty("Authorization", authHeaderValue);
             conn.setRequestProperty("Basic realm", "AXIS_ACCC8E6E46EC");
-
             conn.connect();
+
             InputStream is = conn.getInputStream();
 
             int[] imgSize = getImageSize(is);
@@ -130,7 +130,9 @@ public class AxisVideoOutput extends AbstractSensorOutput < AxisCameraDriver > {
                     try {
                         var conn = videoUrl.openConnection();
                         conn.setRequestProperty("Authorization", authHeaderValue);
+                        conn.setRequestProperty("Basic realm", "AXIS_ACCC8E6E46EC");
                         conn.connect();
+
                         InputStream is = conn.getInputStream();
                         MjpegStream stream = new MjpegStream(is, null);
                         streaming = true;

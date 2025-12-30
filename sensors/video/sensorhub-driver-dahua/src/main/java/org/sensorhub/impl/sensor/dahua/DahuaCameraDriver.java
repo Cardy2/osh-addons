@@ -21,6 +21,8 @@ import java.io.InputStream;
 import java.io.InputStreamReader;
 import java.net.HttpURLConnection;
 import java.net.URL;
+import java.util.Base64;
+
 import net.opengis.sensorml.v20.IdentifierList;
 import net.opengis.sensorml.v20.Term;
 import org.sensorhub.api.common.SensorHubException;
@@ -55,6 +57,7 @@ public class DahuaCameraDriver extends AbstractSensorModule<DahuaCameraConfig>
     String hostUrl;
     String serialNumber;
     String modelNumber;
+    String authHeaderValue;
 
 
     public DahuaCameraDriver()
@@ -95,6 +98,23 @@ public class DahuaCameraDriver extends AbstractSensorModule<DahuaCameraConfig>
         // create connection handler
         connection = new RobustHTTPConnection(this, config.connection, "Dahua Camera")
         {
+
+            @Override
+            protected void prepareHttpConnection(HttpURLConnection conn) throws IOException
+            {
+                String username = config.http.user;
+                String password = config.http.password;
+
+                if (username != null && !username.isEmpty())
+                {
+                    String userPass = username + ":" + password;
+                    String encoded = Base64.getEncoder().encodeToString(userPass.getBytes());
+                    authHeaderValue = "Basic " + encoded;
+                    conn.setRequestProperty("Authorization", authHeaderValue);
+                }
+            }
+
+            @Override
             public boolean tryConnect() throws IOException
             {
                 // check we can reach the HTTP server
@@ -192,7 +212,10 @@ public class DahuaCameraDriver extends AbstractSensorModule<DahuaCameraConfig>
         try
         {
             URL optionsURL = new URL(getHostUrl() + "/ptz.cgi?action=getCurrentProtocolCaps&channel=0");
+
+
             conn = (HttpURLConnection)optionsURL.openConnection();
+            conn.setRequestProperty("Authorization", authHeaderValue);
             conn.setConnectTimeout(config.connection.connectTimeout);
             conn.setReadTimeout(config.connection.connectTimeout);
             conn.connect();
@@ -359,19 +382,10 @@ public class DahuaCameraDriver extends AbstractSensorModule<DahuaCameraConfig>
     public void cleanup()
     {
     }
-    
-
-    private void setAuth()
-    {
-        ClientAuth.getInstance().setUser(config.http.user);
-        if (config.http.password != null)
-            ClientAuth.getInstance().setPassword(config.http.password.toCharArray());
-    }
 
 
     protected String getHostUrl()
     {
-        setAuth();
         return hostUrl;
     }
 }

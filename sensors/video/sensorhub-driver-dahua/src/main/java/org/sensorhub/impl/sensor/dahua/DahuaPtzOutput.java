@@ -20,8 +20,10 @@ import java.io.IOException;
 import java.io.InputStream;
 import java.io.InputStreamReader;
 import java.net.URL;
+import java.net.URLConnection;
 import java.text.DateFormat;
 import java.text.SimpleDateFormat;
+import java.util.Base64;
 import java.util.TimeZone;
 import java.util.Timer;
 import java.util.TimerTask;
@@ -51,6 +53,8 @@ public class DahuaPtzOutput extends AbstractSensorOutput<DahuaCameraDriver>
     TextEncoding textEncoding;
     URL getSettingsUrl;
     Timer timer;
+    String authHeaderValue;
+
         
     // set default timezone to GMT; check TZ in init below
     TimeZone tz = TimeZone.getTimeZone("UTC");
@@ -80,7 +84,20 @@ public class DahuaPtzOutput extends AbstractSensorOutput<DahuaCameraDriver>
         try
         {
             URL optionsURL = new URL(parentSensor.getHostUrl() + "/ptz.cgi?action=getCurrentProtocolCaps&channel=0");
-        	InputStream is = optionsURL.openStream();
+
+            DahuaCameraConfig config = parentSensor.getConfiguration();
+
+            String username = config.http.user;
+            String password = config.http.password;
+            String userPass = username + ":" + password;
+            String encoded = Base64.getEncoder().encodeToString(userPass.getBytes());
+            authHeaderValue = "Basic " + encoded;
+
+            var conn = optionsURL.openConnection();
+            conn.setRequestProperty("Authorization", authHeaderValue);
+            conn.connect();
+
+        	InputStream is = conn.getInputStream();
         	BufferedReader bReader = new BufferedReader(new InputStreamReader(is));
 
         	// get limit values from IP stream
@@ -125,6 +142,7 @@ public class DahuaPtzOutput extends AbstractSensorOutput<DahuaCameraDriver>
         try
         {
             getSettingsUrl = new URL(parentSensor.getHostUrl() + "/ptz.cgi?action=getStatus");
+
 	        final long samplingPeriod = (long)(getAverageSamplingPeriod()*1000);
 	        
 	        TimerTask timerTask = new TimerTask()
@@ -157,7 +175,11 @@ public class DahuaPtzOutput extends AbstractSensorOutput<DahuaCameraDriver>
         
         try
         {
-            is = getSettingsUrl.openStream();
+            var conn = getSettingsUrl.openConnection();
+            conn.setRequestProperty("Authorization", authHeaderValue);
+            conn.connect();
+
+            is = conn.getInputStream();
             BufferedReader reader = new BufferedReader(new InputStreamReader(is));
 
             String line;
