@@ -1,0 +1,34 @@
+description = 'FFmpeg Video Utilities'
+ext.details = 'Reusable FFmpeg/JavaCPP-based video demux and output helpers (MJPEG, H.264, H.265, RTSP, RTP, HTTP, webcams, etc.)'
+version = '1.0.0'
+
+// Pure library module. No IModuleProvider, no Bundle-Activator.
+// Consumed by sensorhub-driver-ffmpeg and any sensor driver that wants
+// FFmpeg-backed video/audio ingestion (e.g. sensorhub-driver-axis).
+dependencies {
+    implementation 'org.sensorhub:sensorhub-core:' + oshCoreVersion
+    embeddedApi 'org.bytedeco:ffmpeg-platform:7.1-1.5.11'
+}
+
+test {
+    useJUnit()
+}
+
+// add info to OSGi manifest
+osgi {
+    manifest {
+        attributes('Bundle-Vendor': 'Botts Innovative Research, Inc.')
+    }
+}
+
+// add info to maven pom
+ext.pom >>= {
+    developers {
+        developer {
+            id 'drewbotts'
+            name 'Drew Botts'
+            organization 'Botts Innovative Research, Inc.'
+            organizationUrl 'http://www.botts-inc.com'
+        }
+    }
+}
