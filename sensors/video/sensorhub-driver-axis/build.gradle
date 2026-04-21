@@ -4,12 +4,17 @@ version = '1.0.0'
 
 dependencies {
   implementation 'org.sensorhub:sensorhub-core:' + oshCoreVersion
+  // :sensorhub-driver-rtpcam is still required for two classes used by this driver:
+  //   - RTSPConfig  : field type in AxisCameraConfig (cannot change without breaking
+  //                   serialized configurations of deployed nodes).
+  //   - RTSPClient  : used for a lightweight RTSP OPTIONS preflight in tryConnect()
+  //                   before handing the URL off to FFmpeg.
+  // The RTP streaming path (RTPVideoOutput) is no longer used; FFmpeg handles it now.
   implementation project(':sensorhub-driver-rtpcam')
-  embeddedImpl('net.sf.jipcam:jipcam:0.9.1') {
-    exclude group: 'javax.servlet', module: 'servlet-api'
-    exclude group: 'commons-cli', module: 'commons-cli'
-    exclude group: 'commons-httpclient', module: 'commons-httpclient'
-  }
+  // FFmpeg/JavaCPP-backed video ingestion (MJPEG, H.264, H.265, RTSP, RTP, HTTP).
+  // Replaces the legacy, unmaintained net.sf.jipcam:jipcam:0.9.1 library
+  // (which also dragged in the deprecated JMF javax.media API).
+  implementation project(':sensorhub-utils-ffmpeg')
   testImplementation project(path: ':sensorhub-driver-videocam', configuration: 'testArtifacts')
 }
 
