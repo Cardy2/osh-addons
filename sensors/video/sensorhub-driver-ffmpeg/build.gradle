@@ -2,11 +2,12 @@ description = 'FFMPEG Video Driver'
 ext.details = "Driver for connecting to ffmpeg capable video streams"
 version = '1.1.0'
 
-// To build in entire java cv platform of projects use
-//    implementation('org.bytedeco:javacv-platform:1.5.2')
+// The FFmpeg/JavaCPP engine classes (MpegTsProcessor, VideoOutput, AudioOutput, etc.)
+// live in :sensorhub-utils-ffmpeg so they can be reused by other drivers
+// (e.g. sensorhub-driver-axis) without pulling in this driver's IModuleProvider.
 dependencies {
     implementation 'org.sensorhub:sensorhub-core:' + oshCoreVersion
-    embeddedApi 'org.bytedeco:ffmpeg-platform:7.1-1.5.11'
+    api project(':sensorhub-utils-ffmpeg')
     testImplementation('junit:junit:4.13.1')
     testImplementation('org.jcodec:jcodec-javase:0.1.9')
 }
