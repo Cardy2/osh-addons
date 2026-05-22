@@ -2,14 +2,34 @@ description = 'OpenCV processing components'
 ext.details = 'Computer vision and image processing components based on the OpenCV platform'
 version = '0.1'
 
+repositories {
+  mavenCentral()  // OpenCV is available from Maven Central
+  maven { url 'https://jitpack.io' }
+}
 
 dependencies {
   implementation 'org.sensorhub:sensorhub-core:' + oshCoreVersion
   implementation project(':sensorhub-process-ffmpeg')
-  embeddedApi('org.bytedeco:opencv-platform:4.5.5-1.5.7') {
-    exclude group: 'org.bytedeco', module: 'javacpp'
-  }
-  
+
+  // https://mvnrepository.com/artifact/org.bytedeco/tesseract
+//  implementation 'org.bytedeco:tesseract-platform:5.5.0-1.5.11'
+//  implementation 'com.github.bemyeye:java-openalpr-binding:2.3.0'
+
+  implementation 'net.sourceforge.tess4j:tess4j:5.11.0'
+  implementation 'org.bytedeco:javacv-platform:1.5.11'
+  implementation 'org.bytedeco.opencv:4.3.0-1.5.3'
+
+  embeddedApi('org.bytedeco:opencv-platform:4.5.5-1.5.7')
+          {
+            exclude group: 'org.bytedeco', module: 'javacpp'
+          }
+
+//  embeddedApi('org.bytedeco:opencv-platform:4.10.0-1.5.11')
+//          {
+//    exclude group: 'org.bytedeco', module: 'javacpp'
+//  }
+
+
   testImplementation project(':sensorhub-driver-v4l')
 }
 
